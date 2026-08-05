@@ -20,11 +20,21 @@ A read-only, local, injection-free HUD for Codex Desktop on Windows. It stays ne
 
 ## Demo
 
+### Sidebar tracking
+
 <p align="center">
   <img src="assets/motion-demo.gif" alt="HUD follows the Codex composer while the right panel opens and closes" width="92%">
 </p>
 
 Only spatial position changes during sidebar motion. Digits, rings, icons, and color transitions pause until movement completes.
+
+### Task switching
+
+<p align="center">
+  <img src="assets/session-switch-demo.gif" alt="HUD updates its compaction count and context ring after switching Codex tasks" width="92%">
+</p>
+
+After the active task is confirmed, the new compaction count flips in, the context ring drains and refills, and the compaction icon rotates once so the task change is unmistakable.
 
 ## Highlights
 

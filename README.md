@@ -26,11 +26,21 @@ Codex Desktop 的长任务需要随时知道两件事：当前上下文压力，
 
 ## 实际效果
 
+### 侧栏跟随
+
 <p align="center">
   <img src="assets/motion-demo.gif" alt="HUD follows the Codex composer while the right panel opens and closes" width="92%">
 </p>
 
 平移期间只有位置发生变化；数字、上下文环、压缩图标和颜色动画会冻结，移动完成后再继续。
+
+### 任务切换
+
+<p align="center">
+  <img src="assets/session-switch-demo.gif" alt="HUD updates its compaction count and context ring after switching Codex tasks" width="92%">
+</p>
+
+切换任务后，HUD 会先确认当前会话，再用数字翻入、上下文环归零回填和压缩图标旋转突出数值变化，避免误把上一任务的数据看成当前状态。
 
 ## 功能
 
