@@ -1,0 +1,32 @@
+name: Windows build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build and self-test
+        shell: pwsh
+        run: .\Build.ps1
+
+      - name: Create portable package
+        shell: pwsh
+        run: .\Package.ps1 -SkipBuild
+
+      - name: Upload portable package
+        uses: actions/upload-artifact@v4
+        with:
+          name: CodexContextHUD-portable
+          path: CodexContextHUD-portable.zip
+          if-no-files-found: error

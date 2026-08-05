@@ -7,6 +7,7 @@ English · [简体中文](README.md)
 </p>
 
 <p align="center">
+  <a href="https://github.com/wtf12345789/codex-context-hud/actions/workflows/build.yml"><img src="https://github.com/wtf12345789/codex-context-hud/actions/workflows/build.yml/badge.svg" alt="Windows build"></a>
   <a href="https://github.com/wtf12345789/codex-context-hud/releases"><img src="https://img.shields.io/github/v/release/wtf12345789/codex-context-hud?display_name=tag&sort=semver" alt="Release"></a>
   <img src="https://img.shields.io/badge/Windows-10%20%7C%2011-4f7fd7" alt="Windows 10 and 11">
   <img src="https://img.shields.io/badge/network-none-5bb27a" alt="No network calls">
