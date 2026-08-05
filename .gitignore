@@ -1,0 +1,10 @@
+*.exe
+*.pdb
+*.zip
+*.log
+*.tmp
+bin/
+obj/
+.vs/
+.idea/
+TestResults/
