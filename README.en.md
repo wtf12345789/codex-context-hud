@@ -40,6 +40,7 @@ After the active task is confirmed, the new compaction count flips in, the conte
 
 - Tracks the active Codex task automatically.
 - Shows context usage and the number of compactions.
+- Shows remaining context-window capacity (`100% - context usage`), not account or billing quota.
 - Native-looking, borderless, click-through rendering beside the composer.
 - DWM-synchronized sidebar motion with content animations paused during movement.
 - Reads local structured runtime/session signals only; no network access and no conversation text storage.

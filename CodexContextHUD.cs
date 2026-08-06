@@ -78,6 +78,8 @@ namespace CodexContextHUD
                       HudForm.CompressionSeverity(2) == 1 &&
                       HudForm.CompressionSeverity(3) == 2 &&
                       HudForm.ContextSeverity(87) == 2 &&
+                      HudForm.RemainingPercent(70) == 30 &&
+                      HudForm.RemainingPercent(-1) == -1 &&
                       HudForm.Clamp(20, 0, 10) == 10 &&
                       HudForm.BottomAnchoredY(100, 20, 5) == 75 &&
                        HudForm.FixedHudX(0, 1000) == 210 &&
@@ -105,8 +107,9 @@ namespace CodexContextHUD
                       Math.Abs(HudForm.CubicBezier(0, .2, .8, .2, 1)) < 0.001 &&
                       Math.Abs(HudForm.CubicBezier(1, .2, .8, .2, 1) - 1) < 0.001;
             string result = string.Format(
-                "ok={0};compressions={1};context={2};session={3};thread={4}",
+                "ok={0};compressions={1};context={2};remaining={3};session={4};thread={5}",
                 ok, reader.Compressions, reader.ContextPercent,
+                HudForm.RemainingPercent(reader.ContextPercent),
                 latest == null ? "none" : Path.GetFileName(latest),
                 focus.ThreadId ?? "none");
             if (!string.IsNullOrWhiteSpace(outputPath)) File.WriteAllText(outputPath, result, Encoding.UTF8);
@@ -592,8 +595,8 @@ namespace CodexContextHUD
 
     internal sealed class HudForm : Form
     {
-        private const int HudContentWidth = 244;
-        private const int HudContentHeight = 42;
+        private const int HudContentWidth = 230;
+        private const int HudContentHeight = 36;
         private SessionReader reader = new SessionReader();
         private readonly FocusReader focusReader = new FocusReader();
         private readonly Dictionary<string, SessionReader> readerCache =
@@ -743,7 +746,7 @@ namespace CodexContextHUD
             StartPosition = FormStartPosition.Manual;
             BackColor = Color.FromArgb(43, 43, 44);
             TransparencyKey = BackColor;
-            Font = new Font("Segoe UI Variable Text", 9f, FontStyle.Regular, GraphicsUnit.Point);
+            Font = new Font("Segoe UI Variable Text", 8f, FontStyle.Regular, GraphicsUnit.Point);
             boldFont = new Font(Font, FontStyle.Bold);
             ClientSize = new Size(HudContentWidth, HudContentHeight);
             DoubleBuffered = true;
@@ -890,24 +893,26 @@ namespace CodexContextHUD
             Color targetContextColor = ContextSeverity(observedContext) == 2 ? Color.FromArgb(224, 104, 104) :
                 ContextSeverity(observedContext) == 1 ? Color.FromArgb(217, 168, 83) :
                 ContextSeverity(observedContext) == 0 ? Color.FromArgb(91, 178, 122) : Color.FromArgb(111, 115, 123);
+            int observedRemaining = RemainingPercent(observedContext);
+            Color remainingColor = RemainingColor(observedRemaining);
             Color labelColor = Color.FromArgb(190, 190, 194);
 
             GraphicsState iconState = e.Graphics.Save();
-            e.Graphics.TranslateTransform(offsetX + 20, 21);
+            e.Graphics.TranslateTransform(offsetX + 17, 18);
             e.Graphics.ScaleTransform(animationIconScale, animationIconScale);
             e.Graphics.RotateTransform(animationSpin);
-            e.Graphics.TranslateTransform(-(offsetX + 20), -21);
+            e.Graphics.TranslateTransform(-(offsetX + 17), -18);
             using (Pen iconPen = new Pen(compressionColor, 2f))
             {
                 iconPen.StartCap = LineCap.Round;
                 iconPen.EndCap = LineCap.Round;
-                e.Graphics.DrawArc(iconPen, offsetX + 12, 13, 16, 16, 25, 125);
-                e.Graphics.DrawArc(iconPen, offsetX + 12, 13, 16, 16, 205, 125);
+                e.Graphics.DrawArc(iconPen, offsetX + 10, 10, 14, 14, 25, 125);
+                e.Graphics.DrawArc(iconPen, offsetX + 10, 10, 14, 14, 205, 125);
             }
             using (Brush iconBrush = new SolidBrush(compressionColor))
             {
-                e.Graphics.FillPolygon(iconBrush, new[] { new PointF(offsetX + 11, 19), new PointF(offsetX + 11, 14), new PointF(offsetX + 16, 16) });
-                e.Graphics.FillPolygon(iconBrush, new[] { new PointF(offsetX + 29, 23), new PointF(offsetX + 29, 28), new PointF(offsetX + 24, 26) });
+                e.Graphics.FillPolygon(iconBrush, new[] { new PointF(offsetX + 9, 15), new PointF(offsetX + 9, 11), new PointF(offsetX + 14, 13) });
+                e.Graphics.FillPolygon(iconBrush, new[] { new PointF(offsetX + 25, 19), new PointF(offsetX + 25, 23), new PointF(offsetX + 20, 21) });
             }
             e.Graphics.Restore(iconState);
 
@@ -915,20 +920,20 @@ namespace CodexContextHUD
                 TextFormatFlags.NoPadding | TextFormatFlags.SingleLine;
             Size compressionLabelSize = TextRenderer.MeasureText(e.Graphics, "压缩", Font,
                 new Size(int.MaxValue, Height), metricFlags);
-            int compressionValueX = 36 + compressionLabelSize.Width + 6;
+            int compressionValueX = 29 + compressionLabelSize.Width + 4;
             TextRenderer.DrawText(e.Graphics, "压缩", Font,
-                new Rectangle(offsetX + 36, 0, compressionLabelSize.Width, Height), labelColor, metricFlags);
+                new Rectangle(offsetX + 29, 0, compressionLabelSize.Width, Height), labelColor, metricFlags);
             DrawAnimatedMetric(e.Graphics,
                 observedCompressions.ToString(),
-                new Rectangle(offsetX + compressionValueX, 0, 100 - compressionValueX, Height),
+                new Rectangle(offsetX + compressionValueX, 0, 72 - compressionValueX, Height),
                 switchAnimation ? compressionColor : Color.FromArgb(239, 239, 241),
                 switchAnimation ? Math.Min(1, elapsed / 500.0) : 1, switchAnimation,
                 metricFlags);
 
             using (Pen divider = new Pen(Color.FromArgb(55, 55, 58), 1f))
-                e.Graphics.DrawLine(divider, offsetX + 105, 10, offsetX + 105, Height - 10);
+                e.Graphics.DrawLine(divider, offsetX + 74, 8, offsetX + 74, Height - 8);
 
-            Rectangle ring = new Rectangle(offsetX + 119, 12, 18, 18);
+            Rectangle ring = new Rectangle(offsetX + 84, 10, 16, 16);
             using (Pen ringTrack = new Pen(Color.FromArgb(70, 70, 74), 3f))
                 e.Graphics.DrawEllipse(ringTrack, ring);
             if (shownContext >= 0)
@@ -944,13 +949,28 @@ namespace CodexContextHUD
             string context = observedContext < 0 ? "?" : observedContext + "%";
             Size contextLabelSize = TextRenderer.MeasureText(e.Graphics, "上下文", Font,
                 new Size(int.MaxValue, Height), metricFlags);
-            int contextValueX = 146 + contextLabelSize.Width + 8;
+            int contextValueX = 105 + contextLabelSize.Width + 4;
             TextRenderer.DrawText(e.Graphics, "上下文", Font,
-                new Rectangle(offsetX + 146, 0, contextLabelSize.Width, Height), labelColor, metricFlags);
+                new Rectangle(offsetX + 105, 0, contextLabelSize.Width, Height), labelColor, metricFlags);
             DrawAnimatedMetric(e.Graphics, context,
                 new Rectangle(offsetX + contextValueX, 0,
-                    HudContentWidth - contextValueX - 2, Height),
+                    166 - contextValueX, Height),
                 switchAnimation ? targetContextColor : Color.FromArgb(239, 239, 241),
+                switchAnimation ? Math.Max(0, Math.Min(1, (elapsed - 390) / 520.0)) : 1,
+                switchAnimation && elapsed >= 390, metricFlags);
+
+            using (Pen divider = new Pen(Color.FromArgb(55, 55, 58), 1f))
+                e.Graphics.DrawLine(divider, offsetX + 169, 8, offsetX + 169, Height - 8);
+
+            Size remainingLabelSize = TextRenderer.MeasureText(e.Graphics, "余量", Font,
+                new Size(int.MaxValue, Height), metricFlags);
+            TextRenderer.DrawText(e.Graphics, "余量", Font,
+                new Rectangle(offsetX + 178, 0, remainingLabelSize.Width, Height), labelColor, metricFlags);
+            string remaining = observedRemaining < 0 ? "?" : observedRemaining + "%";
+            DrawAnimatedMetric(e.Graphics, remaining,
+                new Rectangle(offsetX + 178 + remainingLabelSize.Width + 4, 0,
+                    HudContentWidth - (178 + remainingLabelSize.Width + 4) - 2, Height),
+                switchAnimation ? remainingColor : Color.FromArgb(239, 239, 241),
                 switchAnimation ? Math.Max(0, Math.Min(1, (elapsed - 390) / 520.0)) : 1,
                 switchAnimation && elapsed >= 390, metricFlags);
         }
@@ -1011,6 +1031,19 @@ namespace CodexContextHUD
         internal static int ContextSeverity(int percent)
         {
             return percent < 0 ? -1 : percent >= 85 ? 2 : percent >= 70 ? 1 : 0;
+        }
+
+        internal static int RemainingPercent(int usedPercent)
+        {
+            return usedPercent < 0 ? -1 : 100 - Math.Max(0, Math.Min(100, usedPercent));
+        }
+
+        private static Color RemainingColor(int remainingPercent)
+        {
+            return remainingPercent < 0 ? Color.FromArgb(111, 115, 123) :
+                remainingPercent <= 15 ? Color.FromArgb(224, 104, 104) :
+                remainingPercent <= 30 ? Color.FromArgb(217, 168, 83) :
+                Color.FromArgb(91, 178, 122);
         }
 
         private void QueueSession(object sender, FileSystemEventArgs e)

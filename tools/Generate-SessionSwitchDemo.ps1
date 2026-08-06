@@ -76,6 +76,13 @@ function Get-ContextColor([int]$Percent) {
     return [Drawing.Color]::FromArgb(91, 178, 122)
 }
 
+function Get-RemainingColor([int]$Percent) {
+    if ($Percent -lt 0) { return [Drawing.Color]::FromArgb(111, 115, 123) }
+    if ($Percent -le 15) { return [Drawing.Color]::FromArgb(224, 104, 104) }
+    if ($Percent -le 30) { return [Drawing.Color]::FromArgb(217, 168, 83) }
+    return [Drawing.Color]::FromArgb(91, 178, 122)
+}
+
 function Get-MetricFrame([double]$Progress) {
     $eased = Get-CubicBezier $Progress .2 .8 .2 1
     if ($eased -le .62) {
@@ -151,6 +158,7 @@ function Draw-HudMetrics($Graphics, [int]$Compression, [int]$Context,
     $contextColor = Get-ContextColor $Context
 
     $displayedContext = $Context
+    $remaining = if ($Context -lt 0) { -1 } else { 100 - $Context }
     $spin = 0.0
     $scale = 1.0
     if ($Animate) {
@@ -180,13 +188,14 @@ function Draw-HudMetrics($Graphics, [int]$Compression, [int]$Context,
     }
 
     $metricBackground = New-Object Drawing.SolidBrush $background
-    $Graphics.FillRectangle($metricBackground, 379, 293, 197, 34)
+    $Graphics.FillRectangle($metricBackground, 379, 293, 286, 34)
     $metricBackground.Dispose()
     Draw-CompressionIcon $Graphics 394 310 $compressionColor $spin $scale
 
     $labelBrush = New-Object Drawing.SolidBrush $labelColor
     $labelFormat = New-Object Drawing.StringFormat
     $labelFormat.LineAlignment = [Drawing.StringAlignment]::Center
+    $labelFormat.FormatFlags = [Drawing.StringFormatFlags]::NoWrap
     $compressionLabel = ([char]0x538B).ToString() + [char]0x7F29
     $contextLabel = ([char]0x4E0A).ToString() + [char]0x4E0B + [char]0x6587
     $Graphics.DrawString($compressionLabel, $LabelFont, $labelBrush,
@@ -217,6 +226,18 @@ function Draw-HudMetrics($Graphics, [int]$Compression, [int]$Context,
     $contextProgress = [Math]::Max(0, [Math]::Min(1, ($AnimationElapsedMs - 390) / 520))
     Draw-MetricText $Graphics ("{0}%" -f $Context) $ValueFont `
         ([Drawing.RectangleF]::new(557, 293, 42, 34)) $contextColor $contextProgress `
+        ($Animate -and $AnimationElapsedMs -ge 390) $background
+
+    $divider = New-Object Drawing.Pen ([Drawing.Color]::FromArgb(72, 72, 76)), 1
+    $Graphics.DrawLine($divider, 604, 300, 604, 320)
+    $divider.Dispose()
+    $remainingColor = Get-RemainingColor $remaining
+    $remainingLabel = ([char]0x4F59).ToString() + [char]0x91CF
+    $Graphics.DrawString($remainingLabel, $LabelFont, $labelBrush,
+        [Drawing.RectangleF]::new(612, 293, 36, 34), $labelFormat)
+    $remainingProgress = [Math]::Max(0, [Math]::Min(1, ($AnimationElapsedMs - 390) / 520))
+    Draw-MetricText $Graphics ("{0}%" -f $remaining) $ValueFont `
+        ([Drawing.RectangleF]::new(650, 293, 40, 34)) $remainingColor $remainingProgress `
         ($Animate -and $AnimationElapsedMs -ge 390) $background
     $labelFormat.Dispose()
     $labelBrush.Dispose()
