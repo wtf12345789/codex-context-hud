@@ -432,6 +432,10 @@ namespace CodexContextHUD
                     script.IndexOf("account/rateLimits/updated", StringComparison.Ordinal) >= 0 &&
                     script.IndexOf("stableIds", StringComparison.Ordinal) >= 0 &&
                     script.IndexOf("applyCompactionSnapshot", StringComparison.Ordinal) >= 0 &&
+                    script.IndexOf("composerConversationId", StringComparison.Ordinal) >= 0 &&
+                    script.IndexOf("client-new-thread:", StringComparison.Ordinal) >= 0 &&
+                    script.IndexOf("item/completed", StringComparison.Ordinal) >= 0 &&
+                    script.IndexOf("Math.max(state.compressions, snapshot.count)", StringComparison.Ordinal) >= 0 &&
                     script.IndexOf("tooltipShowTimer", StringComparison.Ordinal) >= 0 &&
                     script.IndexOf("animateCompressionBars", StringComparison.Ordinal) >= 0 &&
                     script.IndexOf("animateQuotaFill", StringComparison.Ordinal) >= 0 &&

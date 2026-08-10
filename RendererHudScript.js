@@ -56,18 +56,9 @@
     state.threadReadSequence += 1;
   }
 
-  function refreshActiveThread() {
-    const active = Array.from(document.querySelectorAll('[data-app-action-sidebar-thread-id]'))
-      .find(element => element.closest('[aria-current="page"]'));
-    if (active) {
-      const raw = active.getAttribute('data-app-action-sidebar-thread-id') || '';
-      const separator = raw.indexOf(':');
-      setThread(separator >= 0 ? raw.slice(separator + 1) : raw);
-      return;
-    }
-
+  function composerConversationId() {
     let anchor = editableCandidates()[0];
-    if (!anchor) return;
+    if (!anchor) return '';
     let fiberKey = null;
     while (anchor && anchor !== document.body && !fiberKey) {
       fiberKey = Object.getOwnPropertyNames(anchor).find(key => key.startsWith('__reactFiber'));
@@ -76,12 +67,33 @@
     let fiber = anchor && fiberKey ? anchor[fiberKey] : null;
     for (let depth = 0; fiber && depth < 40; depth += 1, fiber = fiber.return) {
       for (const props of [fiber.memoizedProps, fiber.pendingProps]) {
-        if (props && typeof props.conversationId === 'string') {
-          setThread(props.conversationId);
-          return;
-        }
+        if (props && typeof props.conversationId === 'string' && props.conversationId)
+          return props.conversationId;
       }
     }
+    return '';
+  }
+
+  function refreshActiveThread() {
+    const active = Array.from(document.querySelectorAll('[data-app-action-sidebar-thread-id]'))
+      .find(element => element.closest('[aria-current="page"]'));
+    let sidebarId = '';
+    if (active) {
+      const raw = active.getAttribute('data-app-action-sidebar-thread-id') || '';
+      const separator = raw.indexOf(':');
+      sidebarId = separator >= 0 ? raw.slice(separator + 1) : raw;
+      if (sidebarId && !sidebarId.startsWith('client-new-thread:')) {
+        setThread(sidebarId);
+        return;
+      }
+    }
+
+    const composerId = composerConversationId();
+    if (composerId) {
+      setThread(composerId);
+      return;
+    }
+    if (sidebarId) setThread(sidebarId);
   }
 
   function findConversationManager() {
@@ -129,8 +141,7 @@
 
   function applyCompactionSnapshot(value) {
     const snapshot = countCompactions(value);
-    state.compressions = snapshot.count;
-    state.compactionKeys.clear();
+    state.compressions = Math.max(state.compressions, snapshot.count);
     for (const id of snapshot.stableIds)
       state.compactionKeys.add(`${state.threadId}:${id}`);
   }
@@ -213,6 +224,12 @@
       const threadId = first(params, ['threadId', 'thread_id']);
       if (state.threadId && threadId !== state.threadId) return;
       registerCompaction(params, 'notification');
+    } else if (method === 'item/started' || method === 'item/completed') {
+      const item = first(params, ['item']);
+      if (!item || (item.type !== 'context-compaction' && item.type !== 'contextCompaction')) return;
+      const threadId = first(params, ['threadId', 'thread_id']);
+      if (state.threadId && threadId && threadId !== state.threadId) return;
+      registerCompaction(Object.assign({}, item, { threadId: threadId || state.threadId }), 'item');
     }
   }
 
@@ -659,7 +676,7 @@
     if (window[INSTANCE] && window[INSTANCE].dispose === dispose) delete window[INSTANCE];
   };
   window[INSTANCE] = {
-    version: 34,
+    version: 35,
     remount: scheduleMount,
     dispose,
     snapshot: () => ({

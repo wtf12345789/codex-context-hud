@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented here.
 
+## 0.2.2 - 2026-08-10
+
+- Resolved provisional `client-new-thread` sidebar IDs through the active composer's real conversation ID.
+- Restored historical compaction counts for affected tasks instead of leaving the HUD at zero.
+- Added live `item/started` and `item/completed` compaction handling with stable-ID deduplication.
+- Prevented partial snapshots from lowering an already observed compaction count.
+
 ## 0.2.1 - 2026-08-10
 
 - Made empty and filled compaction stages easier to distinguish with wider bars and visible tracks.
