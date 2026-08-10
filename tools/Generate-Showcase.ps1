@@ -47,8 +47,15 @@ function Draw-Pill($Graphics, [string]$Text, [float]$X, [float]$Y,
     return $rect.Right
 }
 
+function Get-EaseOut([double]$Value) {
+    $value = [Math]::Max(0, [Math]::Min(1, $Value))
+    return 1 - [Math]::Pow(1 - $value, 3)
+}
+
 function Draw-Composer($Graphics, [float]$X, [float]$Y, [float]$Width, [float]$Height,
-    [Drawing.Font]$UiFont, [Drawing.Font]$UiBold) {
+    [Drawing.Font]$UiFont, [Drawing.Font]$UiBold,
+    [double]$QuotaProgress = 1, [double]$FirstBarProgress = 1,
+    [double]$SecondBarProgress = 1) {
     Draw-RoundedBox $Graphics ([Drawing.RectangleF]::new($X, $Y, $Width, $Height)) 26 `
         ([Drawing.Color]::FromArgb(43, 43, 43)) ([Drawing.Color]::FromArgb(57, 57, 58))
 
@@ -64,18 +71,32 @@ function Draw-Composer($Graphics, [float]$X, [float]$Y, [float]$Width, [float]$H
     $modelX = $X + $Width - 260
 
     # Remaining quota: the exact 18x12, 16x2 renderer geometry.
-    $track = New-Object Drawing.SolidBrush ([Drawing.Color]::FromArgb(82, 224, 224, 226))
+    $quotaProgress = [Math]::Max(0, [Math]::Min(1, $QuotaProgress))
+    $track = New-Object Drawing.SolidBrush ([Drawing.Color]::FromArgb(98, 188, 196, 190))
     $quota = New-Object Drawing.SolidBrush ([Drawing.Color]::FromArgb(134, 165, 142))
     $Graphics.FillRectangle($track, $modelX - 88, $toolbarY + 7, 16, 2)
-    $Graphics.FillRectangle($quota, $modelX - 88, $toolbarY + 7, 10, 2)
+    $quotaWidth = [Math]::Max(.8, 10 * $quotaProgress)
+    $quotaPulse = 1 - [Math]::Abs(2 * $quotaProgress - 1)
+    $quotaHeight = 2 + 1.2 * $quotaPulse
+    $Graphics.FillRectangle($quota, $modelX - 88,
+        [float]($toolbarY + 8 - $quotaHeight / 2), [float]$quotaWidth, [float]$quotaHeight)
 
-    # Saturated 10+ compaction state: three black bars with a faint native outline.
-    $barBrush = New-Object Drawing.SolidBrush ([Drawing.Color]::FromArgb(23, 23, 23))
-    $barPen = New-Object Drawing.Pen ([Drawing.Color]::FromArgb(72, 255, 255, 255)), .7
+    # Eight compactions: two active red bars over the previous yellow stage.
+    $trackBrush = New-Object Drawing.SolidBrush ([Drawing.Color]::FromArgb(168, 212, 187, 111))
     foreach ($offset in @(-58, -53, -48)) {
         $barX = $modelX + $offset
-        $Graphics.FillRectangle($barBrush, $barX, $toolbarY + 3, 2, 10)
-        $Graphics.DrawRectangle($barPen, $barX, $toolbarY + 3, 2, 10)
+        $Graphics.FillRectangle($trackBrush, $barX, $toolbarY + 3, 2, 10)
+    }
+    $barProgress = @($FirstBarProgress, $SecondBarProgress)
+    for ($index = 0; $index -lt 2; $index++) {
+        $progress = [Math]::Max(0, [Math]::Min(1, $barProgress[$index]))
+        if ($progress -le 0) { continue }
+        $height = [Math]::Max(1, 10 * $progress)
+        $barBrush = New-Object Drawing.SolidBrush ([Drawing.Color]::FromArgb(
+            [int][Math]::Round(72 + 183 * $progress), 201, 107, 107))
+        $Graphics.FillRectangle($barBrush, $modelX - 58 + 5 * $index,
+            [float]($toolbarY + 13 - $height), 2, [float]$height)
+        $barBrush.Dispose()
     }
 
     # Codex native context ring.
@@ -91,7 +112,7 @@ function Draw-Composer($Graphics, [float]$X, [float]$Y, [float]$Width, [float]$H
     $arrow = New-Object Drawing.SolidBrush ([Drawing.Color]::FromArgb(61, 61, 63))
     $Graphics.DrawString('↑', $UiBold, $arrow, $X + $Width - 42, $toolbarY + 1)
 
-    $track.Dispose(); $quota.Dispose(); $barBrush.Dispose(); $barPen.Dispose()
+    $track.Dispose(); $quota.Dispose(); $trackBrush.Dispose()
     $ringPen.Dispose(); $arrow.Dispose(); $muted.Dispose(); $native.Dispose(); $orange.Dispose()
 }
 
@@ -110,7 +131,7 @@ function Draw-HoverCard($Graphics, [double]$Opacity, [double]$OffsetY,
     $Graphics.DrawString('Account quota', $SmallFont, $muted, 732, $y + 41)
     $Graphics.DrawString('64%', $UiBold, $text, 858, $y + 40)
     $Graphics.DrawString('Compactions', $SmallFont, $muted, 732, $y + 66)
-    $Graphics.DrawString('28', $UiBold, $text, 863, $y + 65)
+    $Graphics.DrawString('8', $UiBold, $text, 868, $y + 65)
     $muted.Dispose(); $text.Dispose()
 }
 
@@ -179,25 +200,32 @@ try {
         $fg.SmoothingMode = [Drawing.Drawing2D.SmoothingMode]::AntiAlias
         $fg.TextRenderingHint = [Drawing.Text.TextRenderingHint]::ClearTypeGridFit
 
-        # A short sweep draws the eye across quota, compactions, and the native ring.
-        if ($i -ge 8 -and $i -le 34) {
-            $local = ($i - 8) / 26.0
-            $pulse = [Math]::Sin([Math]::PI * $local)
-            $centerX = 860 + 66 * $local
-            $glow = New-Object Drawing.SolidBrush ([Drawing.Color]::FromArgb(
-                [int][Math]::Round(58 * $pulse), 134, 165, 142))
-            $fg.FillEllipse($glow, [float]($centerX - 18), 476, 36, 26)
-            $glow.Dispose()
+        # Reproduce the actual task-switch reveal: reset, refill quota, then stagger bars.
+        $quotaProgress = 1.0
+        $firstBarProgress = 1.0
+        $secondBarProgress = 1.0
+        if ($i -ge 10 -and $i -lt 17) {
+            $t = ($i - 10) / 7.0
+            $quotaProgress = 1 - .85 * $t
+            $firstBarProgress = 1 - $t
+            $secondBarProgress = 1 - $t
+        } elseif ($i -ge 17 -and $i -lt 45) {
+            $t = ($i - 17) / 28.0
+            $quotaProgress = .15 + .85 * (Get-EaseOut $t)
+            $firstBarProgress = Get-EaseOut (($t - .04) / .74)
+            $secondBarProgress = Get-EaseOut (($t - .22) / .74)
         }
+        Draw-Composer $fg 80 342 1120 170 $uiFont $uiBold `
+            $quotaProgress $firstBarProgress $secondBarProgress
 
         $cardOpacity = 0.0
-        if ($i -ge 38 -and $i -lt 52) {
-            $t = ($i - 38) / 14.0
+        if ($i -ge 50 -and $i -lt 64) {
+            $t = ($i - 50) / 14.0
             $cardOpacity = 1 - [Math]::Pow(1 - $t, 3)
-        } elseif ($i -ge 52 -and $i -lt 80) {
+        } elseif ($i -ge 64 -and $i -lt 82) {
             $cardOpacity = 1
-        } elseif ($i -ge 80) {
-            $t = ($i - 80) / 16.0
+        } elseif ($i -ge 82) {
+            $t = ($i - 82) / 13.0
             $cardOpacity = [Math]::Max(0, 1 - $t)
         }
         Draw-HoverCard $fg $cardOpacity (8 * (1 - $cardOpacity)) $smallFont $uiBold
