@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented here.
 
+## 0.2.1 - 2026-08-10
+
+- Made empty and filled compaction stages easier to distinguish with wider bars and visible tracks.
+- Replaced the low-contrast 10+ black stage with a soft violet critical highlight.
+- Lengthened and thickened the quota bar, added a visible empty track, and introduced green/yellow/red quota states.
+- Kept the session-switch reveal motion while reducing the thicker quota bar's vertical pulse.
+
 ## 0.2.0 - 2026-08-10
 
 - Moved the default HUD into the Codex composer toolbar, beside the native context ring.

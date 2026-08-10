@@ -282,7 +282,7 @@
     const startScale = Math.max(.12, Math.min(1, previousWidth / nextWidth));
     fill.animate([
       { transform: `scaleX(${startScale}) scaleY(1)`, opacity: .72 },
-      { transform: 'scaleX(1.025) scaleY(1.7)', opacity: 1, offset: .76 },
+      { transform: 'scaleX(1.025) scaleY(1.45)', opacity: 1, offset: .76 },
       { transform: 'scaleX(1) scaleY(1)', opacity: 1 }
     ], {
       duration: 900,
@@ -292,9 +292,9 @@
     if (track) {
       for (const animation of track.getAnimations()) animation.cancel();
       track.animate([
-        { opacity: .16 },
-        { opacity: .32, offset: .58 },
-        { opacity: .16 }
+        { opacity: .62 },
+        { opacity: .84, offset: .58 },
+        { opacity: .62 }
       ], { duration: 900, easing: 'ease-out', fill: 'none' });
     }
   }
@@ -349,18 +349,21 @@
     if (quotaStat) quotaStat.dataset.tone = severity('quota', state.quotaPercent);
     if (quotaStat) quotaStat.style.display = state.quotaPercent < 0 ? 'none' : 'inline-flex';
     if (quotaFill) {
-      const quotaWidth = state.quotaPercent < 0 ? 0 : clamp(state.quotaPercent) * 16 / 100;
+      const quotaWidth = state.quotaPercent <= 0 ? 0 :
+        Math.max(1.5, clamp(state.quotaPercent) * 22 / 100);
       quotaFill.setAttribute('width', quotaWidth.toFixed(2));
+      quotaFill.style.fill = state.quotaPercent <= 15 ? '#C96B6B' :
+        state.quotaPercent <= 35 ? '#D4BB6F' : '#86A58E';
     }
     const activeCompressionBars = activeCompressionBarCount(compressionBars.length);
-    let compressionColor = 'currentColor';
-    let previousTierColor = 'currentColor';
+    let compressionColor = '#AEB2B7';
+    let previousTierColor = '#62666C';
     let compressionStroke = 'none';
     let compressionTier = 'neutral';
     if (state.compressions >= 10) {
-      compressionColor = '#171717';
+      compressionColor = '#AF8CE0';
       previousTierColor = '#C96B6B';
-      compressionStroke = 'rgba(255,255,255,.20)';
+      compressionStroke = 'rgba(236,224,255,.58)';
       compressionTier = 'critical';
     } else if (state.compressions >= 7) {
       compressionColor = '#C96B6B';
@@ -372,7 +375,7 @@
     }
     compressionTracks.forEach(track => {
       track.style.fill = previousTierColor;
-      track.style.opacity = state.compressions >= 4 ? '.72' : '.14';
+      track.style.opacity = state.compressions >= 4 ? '.78' : '.62';
     });
     compressionBars.forEach((bar, index) => {
       const active = index < activeCompressionBars;
@@ -487,13 +490,15 @@
         [data-stat="compression"], [data-stat="quota"] { color:inherit; }
         .icon { width:16px; height:16px; display:block; fill:none; stroke:currentColor;
           stroke-width:1.4; stroke-linecap:round; stroke-linejoin:round; }
-        .quota-pulse-icon { width:18px; height:12px; }
-        .compression-bars-icon { width:14px; height:12px; }
+        .quota-pulse-icon { width:24px; height:12px; }
+        .compression-bars-icon { width:15px; height:12px; }
         .inline-value { display:none; }
-        .quota-track { fill:currentColor; stroke:none; opacity:.16; }
-        .quota-fill { fill:#86A58E; stroke:none; transform-box:fill-box; transform-origin:left center; }
-        .compression-track { fill:currentColor; stroke:none; opacity:.14; }
-        .compression-bar { stroke-width:.7; transition:opacity .12s ease, fill .12s ease;
+        .quota-track { fill:#62666C; stroke:none; opacity:.62; }
+        .quota-fill { fill:#86A58E; stroke:none; shape-rendering:geometricPrecision;
+          transform-box:fill-box; transform-origin:left center; }
+        .compression-track { fill:#62666C; stroke:none; opacity:.62; }
+        .compression-bar { stroke-width:.5; transition:opacity .12s ease, fill .12s ease, stroke .12s ease;
+          shape-rendering:geometricPrecision;
           transform-box:fill-box; transform-origin:center bottom; }
         [data-tone="muted"] { opacity:.55; }
         [data-tone="warn"], [data-tone="danger"] { color:inherit; }
@@ -502,20 +507,20 @@
       <span class="shell">
         <span class="hud" aria-label="会话统计；上下文用量由相邻的 Codex 原生圆环表示">
           <span class="stat" data-stat="quota" data-tone="muted">
-            <svg class="icon quota-pulse-icon" viewBox="0 0 18 12" aria-hidden="true">
-              <rect class="quota-track" data-quota-track x="1" y="5" width="16" height="2" rx="1"/>
-              <rect class="quota-fill" data-quota-fill x="1" y="5" width="0" height="2" rx="1"/>
+            <svg class="icon quota-pulse-icon" viewBox="0 0 24 12" aria-hidden="true">
+              <rect class="quota-track" data-quota-track x="1" y="4.5" width="22" height="3" rx="1.5"/>
+              <rect class="quota-fill" data-quota-fill x="1" y="4.5" width="0" height="3" rx="1.5"/>
             </svg>
             <span class="inline-value" data-value="quota">--</span>
           </span>
           <span class="stat" data-stat="compression">
-            <svg class="icon compression-bars-icon" viewBox="0 0 14 12" aria-hidden="true">
-              <rect class="compression-track" data-compression-track x="1" y="1" width="2" height="10" rx="1"/>
-              <rect class="compression-track" data-compression-track x="6" y="1" width="2" height="10" rx="1"/>
-              <rect class="compression-track" data-compression-track x="11" y="1" width="2" height="10" rx="1"/>
-              <rect class="compression-bar" data-compression-bar x="1" y="1" width="2" height="10" rx="1"/>
-              <rect class="compression-bar" data-compression-bar x="6" y="1" width="2" height="10" rx="1"/>
-              <rect class="compression-bar" data-compression-bar x="11" y="1" width="2" height="10" rx="1"/>
+            <svg class="icon compression-bars-icon" viewBox="0 0 15 12" aria-hidden="true">
+              <rect class="compression-track" data-compression-track x="1" y="1" width="2.6" height="10" rx="1.3"/>
+              <rect class="compression-track" data-compression-track x="6.2" y="1" width="2.6" height="10" rx="1.3"/>
+              <rect class="compression-track" data-compression-track x="11.4" y="1" width="2.6" height="10" rx="1.3"/>
+              <rect class="compression-bar" data-compression-bar x="1" y="1" width="2.6" height="10" rx="1.3"/>
+              <rect class="compression-bar" data-compression-bar x="6.2" y="1" width="2.6" height="10" rx="1.3"/>
+              <rect class="compression-bar" data-compression-bar x="11.4" y="1" width="2.6" height="10" rx="1.3"/>
             </svg>
             <span class="inline-value" data-value="compression">0</span>
           </span>
@@ -654,7 +659,7 @@
     if (window[INSTANCE] && window[INSTANCE].dispose === dispose) delete window[INSTANCE];
   };
   window[INSTANCE] = {
-    version: 33,
+    version: 34,
     remount: scheduleMount,
     dispose,
     snapshot: () => ({

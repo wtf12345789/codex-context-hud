@@ -437,6 +437,11 @@ namespace CodexContextHUD
                     script.IndexOf("animateQuotaFill", StringComparison.Ordinal) >= 0 &&
                     script.IndexOf("scheduleSessionMotion", StringComparison.Ordinal) >= 0 &&
                     script.IndexOf("state.compressions >= 10 ? length", StringComparison.Ordinal) >= 0 &&
+                    script.IndexOf("#AF8CE0", StringComparison.Ordinal) >= 0 &&
+                    script.IndexOf("width=\"2.6\"", StringComparison.Ordinal) >= 0 &&
+                    script.IndexOf("'.62'", StringComparison.Ordinal) >= 0 &&
+                    script.IndexOf("width=\"22\"", StringComparison.Ordinal) >= 0 &&
+                    script.IndexOf("clamp(state.quotaPercent) * 22 / 100", StringComparison.Ordinal) >= 0 &&
                     script.IndexOf("data-codex-intelligence-trigger", StringComparison.Ordinal) >= 0 &&
                     script.IndexOf("dispose", StringComparison.Ordinal) >= 0 &&
                     script.IndexOf("上下文", StringComparison.Ordinal) >= 0 &&

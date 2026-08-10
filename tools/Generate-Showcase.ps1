@@ -70,22 +70,22 @@ function Draw-Composer($Graphics, [float]$X, [float]$Y, [float]$Width, [float]$H
     $toolbarY = $Y + $Height - 31
     $modelX = $X + $Width - 260
 
-    # Remaining quota: the exact 18x12, 16x2 renderer geometry.
+    # Remaining quota: the exact 24x12, 22x3 renderer geometry at 64%.
     $quotaProgress = [Math]::Max(0, [Math]::Min(1, $QuotaProgress))
-    $track = New-Object Drawing.SolidBrush ([Drawing.Color]::FromArgb(98, 188, 196, 190))
+    $track = New-Object Drawing.SolidBrush ([Drawing.Color]::FromArgb(158, 98, 102, 108))
     $quota = New-Object Drawing.SolidBrush ([Drawing.Color]::FromArgb(134, 165, 142))
-    $Graphics.FillRectangle($track, $modelX - 88, $toolbarY + 7, 16, 2)
-    $quotaWidth = [Math]::Max(.8, 10 * $quotaProgress)
+    $Graphics.FillRectangle($track, $modelX - 94, $toolbarY + 6.5, 22, 3)
+    $quotaWidth = [Math]::Max(1.5, 14.08 * $quotaProgress)
     $quotaPulse = 1 - [Math]::Abs(2 * $quotaProgress - 1)
-    $quotaHeight = 2 + 1.2 * $quotaPulse
-    $Graphics.FillRectangle($quota, $modelX - 88,
+    $quotaHeight = 3 + 1.35 * $quotaPulse
+    $Graphics.FillRectangle($quota, $modelX - 94,
         [float]($toolbarY + 8 - $quotaHeight / 2), [float]$quotaWidth, [float]$quotaHeight)
 
     # Eight compactions: two active red bars over the previous yellow stage.
-    $trackBrush = New-Object Drawing.SolidBrush ([Drawing.Color]::FromArgb(168, 212, 187, 111))
-    foreach ($offset in @(-58, -53, -48)) {
+    $trackBrush = New-Object Drawing.SolidBrush ([Drawing.Color]::FromArgb(199, 212, 187, 111))
+    foreach ($offset in @(-58, -52.8, -47.6)) {
         $barX = $modelX + $offset
-        $Graphics.FillRectangle($trackBrush, $barX, $toolbarY + 3, 2, 10)
+        $Graphics.FillRectangle($trackBrush, $barX, $toolbarY + 3, 2.6, 10)
     }
     $barProgress = @($FirstBarProgress, $SecondBarProgress)
     for ($index = 0; $index -lt 2; $index++) {
@@ -94,8 +94,8 @@ function Draw-Composer($Graphics, [float]$X, [float]$Y, [float]$Width, [float]$H
         $height = [Math]::Max(1, 10 * $progress)
         $barBrush = New-Object Drawing.SolidBrush ([Drawing.Color]::FromArgb(
             [int][Math]::Round(72 + 183 * $progress), 201, 107, 107))
-        $Graphics.FillRectangle($barBrush, $modelX - 58 + 5 * $index,
-            [float]($toolbarY + 13 - $height), 2, [float]$height)
+        $Graphics.FillRectangle($barBrush, $modelX - 58 + 5.2 * $index,
+            [float]($toolbarY + 13 - $height), 2.6, [float]$height)
         $barBrush.Dispose()
     }
 

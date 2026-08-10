@@ -17,9 +17,9 @@ using System.Windows.Automation;
 [assembly: AssemblyTitle("Codex Context HUD")]
 [assembly: AssemblyDescription("Native-feeling context, compaction, and quota HUD for Codex Desktop")]
 [assembly: AssemblyProduct("Codex Context HUD")]
-[assembly: AssemblyVersion("0.2.0.0")]
-[assembly: AssemblyFileVersion("0.2.0.0")]
-[assembly: AssemblyInformationalVersion("0.2.0")]
+[assembly: AssemblyVersion("0.2.1.0")]
+[assembly: AssemblyFileVersion("0.2.1.0")]
+[assembly: AssemblyInformationalVersion("0.2.1")]
 
 namespace CodexContextHUD
 {

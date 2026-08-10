@@ -14,7 +14,7 @@ English · [简体中文](README.md)
 
 A compact context HUD for Codex Desktop. It keeps the native context ring and adds remaining account quota plus active-task compaction stages immediately to its left. The toolbar stays icon-only until you hover for exact values.
 
-Compactions use native gray at 1–3, soft yellow at 4–6, soft red at 7–9, and solid black at 10+. After a task switch, motion waits for statistics to finish loading. There is no detached overlay and the default path no longer scans or caches large session JSONL files.
+Compactions use native gray at 1–3, soft yellow at 4–6, soft red at 7–9, and a soft violet highlight at 10+. After a task switch, motion waits for statistics to finish loading. There is no detached overlay and the default path no longer scans or caches large session JSONL files.
 
 ## Install
 
