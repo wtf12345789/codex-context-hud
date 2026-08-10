@@ -4,13 +4,22 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.IO;
+using System.Globalization;
 using System.Linq;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Windows.Forms;
 using System.Windows.Automation;
+
+[assembly: AssemblyTitle("Codex Context HUD")]
+[assembly: AssemblyDescription("Native-feeling context, compaction, and quota HUD for Codex Desktop")]
+[assembly: AssemblyProduct("Codex Context HUD")]
+[assembly: AssemblyVersion("0.2.0.0")]
+[assembly: AssemblyFileVersion("0.2.0.0")]
+[assembly: AssemblyInformationalVersion("0.2.0")]
 
 namespace CodexContextHUD
 {
@@ -21,6 +30,11 @@ namespace CodexContextHUD
         [STAThread]
         private static int Main(string[] args)
         {
+            if (args.Length > 0 && args[0] == "--renderer-self-test")
+                return RendererHudSelfTest.Run(args.Length > 1 ? args[1] : null);
+            if (args.Length > 0 && args[0] == "--renderer-attach")
+                return RendererHudHost.Run(args);
+
             string sessionsRoot = FindSessionsRoot();
 
             if (args.Length > 0 && args[0] == "--self-test")
@@ -29,9 +43,12 @@ namespace CodexContextHUD
                 return WarmCache(sessionsRoot);
             if (args.Length > 1 && args[0] == "--render-preview")
                 return RenderPreview(sessionsRoot, args[1]);
+            if (args.Length == 0)
+                return RendererHudHost.Run(new[] { "--renderer-attach", "9231" });
+            if (args[0] != "--legacy-overlay") return 2;
 
             bool created;
-            instanceMutex = new Mutex(true, "Local\\CodexContextHUD-v1", out created);
+            instanceMutex = new Mutex(true, "Local\\CodexContextHUD.LegacyOverlay", out created);
             if (!created) return 0;
 
             NativeMethods.SetProcessDPIAware();
@@ -67,19 +84,15 @@ namespace CodexContextHUD
             if (latest == null) latest = SessionReader.FindLatest(sessionsRoot);
             SessionReader reader = new SessionReader();
             if (latest != null) reader.Load(latest);
-            bool catalogOk;
-            using (ThreadCatalog catalog = new ThreadCatalog(sessionsRoot))
-                catalogOk = string.IsNullOrWhiteSpace(focus.ThreadId) || catalog.ContainsId(focus.ThreadId);
             bool dataOk = latest == null ||
-                          (catalogOk && reader.Compressions >= 0 &&
+                          (reader.Compressions >= 0 &&
                            (reader.ContextPercent < 0 || reader.ContextPercent <= 100));
             bool ok = dataOk &&
                       HudForm.CompressionSeverity(1) == 0 &&
                       HudForm.CompressionSeverity(2) == 1 &&
                       HudForm.CompressionSeverity(3) == 2 &&
                       HudForm.ContextSeverity(87) == 2 &&
-                      HudForm.RemainingPercent(70) == 30 &&
-                      HudForm.RemainingPercent(-1) == -1 &&
+                      SessionReader.RemainingFromUsedPercent(88) == 12 &&
                       HudForm.Clamp(20, 0, 10) == 10 &&
                       HudForm.BottomAnchoredY(100, 20, 5) == 75 &&
                        HudForm.FixedHudX(0, 1000) == 210 &&
@@ -96,20 +109,21 @@ namespace CodexContextHUD
                        HudForm.SidebarStateFromName("隐藏边栏") == 1 &&
                        HudForm.SidebarStateFromName("显示边栏") == 0 &&
                        HudForm.SidebarStateFromName("Hide sidebar") == 1 &&
+                       Math.Abs(HudForm.TimingElapsedMs(10,
+                           10 + Stopwatch.Frequency) - 1000) < .0001 &&
                        Math.Abs(HudForm.SidebarMotionTarget(100, 344, true) - 272) < .1 &&
                        Math.Abs(HudForm.SidebarMotionTarget(272, 344, false) - 100) < .1 &&
                       HudForm.PointDistanceSquared(
                           new NativeMethods.POINT { X = 10, Y = 20 },
                           new NativeMethods.POINT { X = 13, Y = 24 }) == 25 &&
                       FocusReader.ExtractActiveThreadId(
-                          "thread_stream_view_activity_changed active=true conversationId=019fbc4a-3dec-73e3-85ec-c65e553dcf1c rendererWindowFocused=true") ==
-                          "019fbc4a-3dec-73e3-85ec-c65e553dcf1c" &&
+                          "thread_stream_view_activity_changed active=true conversationId=11111111-2222-4333-8444-555555555555 rendererWindowFocused=true") ==
+                          "11111111-2222-4333-8444-555555555555" &&
                       Math.Abs(HudForm.CubicBezier(0, .2, .8, .2, 1)) < 0.001 &&
                       Math.Abs(HudForm.CubicBezier(1, .2, .8, .2, 1) - 1) < 0.001;
             string result = string.Format(
-                "ok={0};compressions={1};context={2};remaining={3};session={4};thread={5}",
+                "ok={0};compressions={1};context={2};session={3};thread={4}",
                 ok, reader.Compressions, reader.ContextPercent,
-                HudForm.RemainingPercent(reader.ContextPercent),
                 latest == null ? "none" : Path.GetFileName(latest),
                 focus.ThreadId ?? "none");
             if (!string.IsNullOrWhiteSpace(outputPath)) File.WriteAllText(outputPath, result, Encoding.UTF8);
@@ -234,6 +248,10 @@ namespace CodexContextHUD
             "\\\"last_token_usage\\\"\\s*:\\s*\\{([^}]*)\\}", RegexOptions.Compiled);
         private static readonly Regex TotalTokens = new Regex(
             "\\\"total_tokens\\\"\\s*:\\s*(\\d+)", RegexOptions.Compiled);
+        private static readonly Regex UsedPercent = new Regex(
+            "\\\"used_percent\\\"\\s*:\\s*(\\d+(?:\\.\\d+)?)", RegexOptions.Compiled);
+        private static readonly Regex ResetsAt = new Regex(
+            "\\\"resets_at\\\"\\s*:\\s*(\\d+)", RegexOptions.Compiled);
 
         private long offset;
         private string partial = "";
@@ -241,6 +259,8 @@ namespace CodexContextHUD
         internal string PathName { get; private set; }
         internal int Compressions { get; private set; }
         internal int ContextPercent { get; private set; }
+        internal int RemainingQuotaPercent { get; private set; }
+        internal long QuotaResetsAt { get; private set; }
         internal long SnapshotOffset
         {
             get { return Math.Max(0, offset - Encoding.UTF8.GetByteCount(partial ?? "")); }
@@ -249,6 +269,8 @@ namespace CodexContextHUD
         internal SessionReader()
         {
             ContextPercent = -1;
+            RemainingQuotaPercent = -1;
+            QuotaResetsAt = 0;
         }
 
         internal static string FindLatest(string root)
@@ -283,6 +305,8 @@ namespace CodexContextHUD
             partial = "";
             Compressions = 0;
             ContextPercent = -1;
+            RemainingQuotaPercent = -1;
+            QuotaResetsAt = 0;
 
             try
             {
@@ -290,9 +314,10 @@ namespace CodexContextHUD
                 using (StreamReader reader = new StreamReader(stream, Encoding.UTF8, true, 4096, true))
                 {
                     string line;
-                    while ((line = reader.ReadLine()) != null) Parse(line);
+                    while ((line = reader.ReadLine()) != null) Parse(line, false);
                     offset = stream.Length;
                 }
+                RefreshQuotaFromTail();
             }
             catch { }
         }
@@ -304,15 +329,20 @@ namespace CodexContextHUD
             partial = "";
             Compressions = 0;
             ContextPercent = -1;
+            RemainingQuotaPercent = -1;
+            QuotaResetsAt = 0;
         }
 
-        internal void Restore(string path, long savedOffset, int compressions, int contextPercent)
+        internal void Restore(string path, long savedOffset, int compressions,
+            int contextPercent, int remainingQuotaPercent, long quotaResetsAt)
         {
             PathName = path;
             offset = savedOffset;
             partial = "";
             Compressions = compressions;
             ContextPercent = contextPercent;
+            RemainingQuotaPercent = remainingQuotaPercent;
+            QuotaResetsAt = quotaResetsAt;
             Append();
         }
 
@@ -332,7 +362,8 @@ namespace CodexContextHUD
                         string[] lines = text.Split('\n');
                         partial = text.EndsWith("\n", StringComparison.Ordinal) ? "" : lines[lines.Length - 1];
                         int complete = partial.Length == 0 ? lines.Length : lines.Length - 1;
-                        for (int i = 0; i < complete; i++) Parse(lines[i].TrimEnd('\r'));
+                        for (int i = 0; i < complete; i++)
+                            Parse(lines[i].TrimEnd('\r'), true);
                     }
                 }
             }
@@ -345,7 +376,7 @@ namespace CodexContextHUD
                 FileShare.ReadWrite | FileShare.Delete, 4096, FileOptions.SequentialScan);
         }
 
-        private void Parse(string line)
+        private void Parse(string line, bool includeQuota)
         {
             if (line.IndexOf("\"compacted\"", StringComparison.Ordinal) >= 0 &&
                 Compacted.IsMatch(line))
@@ -361,6 +392,9 @@ namespace CodexContextHUD
 
             if (line.IndexOf("\"token_count\"", StringComparison.Ordinal) < 0 ||
                 !TokenCount.IsMatch(line)) return;
+
+            if (includeQuota) ParseQuota(line);
+
             Match windowMatch = ContextWindow.Match(line);
             Match usageMatch = LastUsage.Match(line);
             if (!windowMatch.Success || !usageMatch.Success) return;
@@ -373,6 +407,59 @@ namespace CodexContextHUD
 
             ContextPercent = Math.Max(0, Math.Min(100,
                 (int)Math.Round(total * 100.0 / windowSize, MidpointRounding.AwayFromZero)));
+        }
+
+        private bool ParseQuota(string line)
+        {
+            int rateLimitsIndex = line.IndexOf("\"rate_limits\"", StringComparison.Ordinal);
+            if (rateLimitsIndex < 0) return false;
+            Match usedMatch = UsedPercent.Match(line, rateLimitsIndex);
+            double usedPercent;
+            if (!usedMatch.Success || !double.TryParse(usedMatch.Groups[1].Value,
+                NumberStyles.Float, CultureInfo.InvariantCulture, out usedPercent)) return false;
+
+            RemainingQuotaPercent = RemainingFromUsedPercent(usedPercent);
+            Match resetMatch = ResetsAt.Match(line, rateLimitsIndex);
+            long resetAt;
+            if (resetMatch.Success && long.TryParse(resetMatch.Groups[1].Value, out resetAt))
+                QuotaResetsAt = resetAt;
+            return true;
+        }
+
+        internal void RefreshQuotaFromTail()
+        {
+            if (string.IsNullOrWhiteSpace(PathName)) return;
+            try
+            {
+                using (FileStream stream = OpenRead(PathName))
+                {
+                    int byteCount = (int)Math.Min(stream.Length, 1024 * 1024);
+                    if (byteCount <= 0) return;
+                    stream.Seek(-byteCount, SeekOrigin.End);
+                    byte[] buffer = new byte[byteCount];
+                    int read = 0;
+                    while (read < byteCount)
+                    {
+                        int next = stream.Read(buffer, read, byteCount - read);
+                        if (next <= 0) break;
+                        read += next;
+                    }
+                    string[] lines = Encoding.UTF8.GetString(buffer, 0, read).Split('\n');
+                    for (int i = lines.Length - 1; i >= 0; i--)
+                    {
+                        string line = lines[i].TrimEnd('\r');
+                        if (line.IndexOf("\"token_count\"", StringComparison.Ordinal) >= 0 &&
+                            ParseQuota(line)) return;
+                    }
+                }
+            }
+            catch { }
+        }
+
+        internal static int RemainingFromUsedPercent(double usedPercent)
+        {
+            return Math.Max(0, Math.Min(100,
+                (int)Math.Round(100 - usedPercent, MidpointRounding.AwayFromZero)));
         }
     }
 
@@ -410,7 +497,7 @@ namespace CodexContextHUD
                     string[] fields = line.Split('\t');
                     long offset;
                     int compressions, context;
-                    if (fields.Length != 4 ||
+                    if ((fields.Length < 4 || fields.Length > 6) ||
                         !long.TryParse(fields[1], out offset) ||
                         !int.TryParse(fields[2], out compressions) ||
                         !int.TryParse(fields[3], out context)) continue;
@@ -435,7 +522,8 @@ namespace CodexContextHUD
                     if (!entries.TryGetValue(path, out entry)) return false;
                 if (!File.Exists(path) || new FileInfo(path).Length < entry.Offset) return false;
                 reader = new SessionReader();
-                reader.Restore(path, entry.Offset, entry.Compressions, entry.ContextPercent);
+                reader.Restore(path, entry.Offset, entry.Compressions,
+                    entry.ContextPercent, -1, 0);
                 return true;
             }
             catch { reader = null; return false; }
@@ -595,8 +683,8 @@ namespace CodexContextHUD
 
     internal sealed class HudForm : Form
     {
-        private const int HudContentWidth = 230;
-        private const int HudContentHeight = 36;
+        private const int HudContentWidth = 260;
+        private const int HudContentHeight = 32;
         private SessionReader reader = new SessionReader();
         private readonly FocusReader focusReader = new FocusReader();
         private readonly Dictionary<string, SessionReader> readerCache =
@@ -625,6 +713,8 @@ namespace CodexContextHUD
         private IntPtr ownerWindow;
         private int observedCompressions;
         private int observedContext;
+        private int observedQuotaPercent = -1;
+        private long observedQuotaResetsAt;
         private float displayedContext;
         private float animationFromContext;
         private float animationSpin;
@@ -717,6 +807,14 @@ namespace CodexContextHUD
         private volatile int mouseHookReady;
         private int mouseUpCount;
         private int sidebarPointerHitCount;
+        private readonly object motionTimingLock = new object();
+        private int motionTimingSequence;
+        private string motionTimingSource = "none";
+        private long motionTimingPointerTimestamp;
+        private long motionTimingPositionTimestamp;
+        private long motionTimingStartTimestamp;
+        private long motionTimingFirstHudFrameTimestamp;
+        private long motionTimingFirstAnchorFrameTimestamp;
         private NativeMethods.POINT hoverPoint;
         private DateTime hoverChanged;
         private bool hoverPending;
@@ -746,7 +844,7 @@ namespace CodexContextHUD
             StartPosition = FormStartPosition.Manual;
             BackColor = Color.FromArgb(43, 43, 44);
             TransparencyKey = BackColor;
-            Font = new Font("Segoe UI Variable Text", 8f, FontStyle.Regular, GraphicsUnit.Point);
+            Font = new Font("Segoe UI Variable Text", 7f, FontStyle.Regular, GraphicsUnit.Point);
             boldFont = new Font(Font, FontStyle.Bold);
             ClientSize = new Size(HudContentWidth, HudContentHeight);
             DoubleBuffered = true;
@@ -766,6 +864,7 @@ namespace CodexContextHUD
                 SessionReader cached;
                 if (sessionCache.TryRestore(current, out cached)) reader = cached;
                 else reader.Load(current);
+                if (reader.RemainingQuotaPercent < 0) reader.RefreshQuotaFromTail();
                 sessionCache.Update(reader);
                 if (!string.IsNullOrWhiteSpace(currentThreadId))
                 {
@@ -775,6 +874,8 @@ namespace CodexContextHUD
             }
             observedCompressions = reader.Compressions;
             observedContext = reader.ContextPercent;
+            observedQuotaPercent = reader.RemainingQuotaPercent;
+            observedQuotaResetsAt = reader.QuotaResetsAt;
             displayedContext = reader.ContextPercent;
             UpdateDiagnosticTitle();
 
@@ -893,26 +994,26 @@ namespace CodexContextHUD
             Color targetContextColor = ContextSeverity(observedContext) == 2 ? Color.FromArgb(224, 104, 104) :
                 ContextSeverity(observedContext) == 1 ? Color.FromArgb(217, 168, 83) :
                 ContextSeverity(observedContext) == 0 ? Color.FromArgb(91, 178, 122) : Color.FromArgb(111, 115, 123);
-            int observedRemaining = RemainingPercent(observedContext);
-            Color remainingColor = RemainingColor(observedRemaining);
+            int quotaPercent = Volatile.Read(ref observedQuotaPercent);
+            Color quotaColor = QuotaColor(quotaPercent);
             Color labelColor = Color.FromArgb(190, 190, 194);
 
             GraphicsState iconState = e.Graphics.Save();
-            e.Graphics.TranslateTransform(offsetX + 17, 18);
+            e.Graphics.TranslateTransform(offsetX + 10, 16);
             e.Graphics.ScaleTransform(animationIconScale, animationIconScale);
             e.Graphics.RotateTransform(animationSpin);
-            e.Graphics.TranslateTransform(-(offsetX + 17), -18);
-            using (Pen iconPen = new Pen(compressionColor, 2f))
+            e.Graphics.TranslateTransform(-(offsetX + 10), -16);
+            using (Pen iconPen = new Pen(compressionColor, 1.6f))
             {
                 iconPen.StartCap = LineCap.Round;
                 iconPen.EndCap = LineCap.Round;
-                e.Graphics.DrawArc(iconPen, offsetX + 10, 10, 14, 14, 25, 125);
-                e.Graphics.DrawArc(iconPen, offsetX + 10, 10, 14, 14, 205, 125);
+                e.Graphics.DrawArc(iconPen, offsetX + 4, 10, 12, 12, 25, 125);
+                e.Graphics.DrawArc(iconPen, offsetX + 4, 10, 12, 12, 205, 125);
             }
             using (Brush iconBrush = new SolidBrush(compressionColor))
             {
-                e.Graphics.FillPolygon(iconBrush, new[] { new PointF(offsetX + 9, 15), new PointF(offsetX + 9, 11), new PointF(offsetX + 14, 13) });
-                e.Graphics.FillPolygon(iconBrush, new[] { new PointF(offsetX + 25, 19), new PointF(offsetX + 25, 23), new PointF(offsetX + 20, 21) });
+                e.Graphics.FillPolygon(iconBrush, new[] { new PointF(offsetX + 3, 14), new PointF(offsetX + 3, 11), new PointF(offsetX + 7, 13) });
+                e.Graphics.FillPolygon(iconBrush, new[] { new PointF(offsetX + 17, 18), new PointF(offsetX + 17, 21), new PointF(offsetX + 13, 19) });
             }
             e.Graphics.Restore(iconState);
 
@@ -920,12 +1021,12 @@ namespace CodexContextHUD
                 TextFormatFlags.NoPadding | TextFormatFlags.SingleLine;
             Size compressionLabelSize = TextRenderer.MeasureText(e.Graphics, "压缩", Font,
                 new Size(int.MaxValue, Height), metricFlags);
-            int compressionValueX = 29 + compressionLabelSize.Width + 4;
+            int compressionValueX = 19 + compressionLabelSize.Width + 2;
             TextRenderer.DrawText(e.Graphics, "压缩", Font,
-                new Rectangle(offsetX + 29, 0, compressionLabelSize.Width, Height), labelColor, metricFlags);
+                new Rectangle(offsetX + 19, 0, compressionLabelSize.Width, Height), labelColor, metricFlags);
             DrawAnimatedMetric(e.Graphics,
                 observedCompressions.ToString(),
-                new Rectangle(offsetX + compressionValueX, 0, 72 - compressionValueX, Height),
+                new Rectangle(offsetX + compressionValueX, 0, 70 - compressionValueX, Height),
                 switchAnimation ? compressionColor : Color.FromArgb(239, 239, 241),
                 switchAnimation ? Math.Min(1, elapsed / 500.0) : 1, switchAnimation,
                 metricFlags);
@@ -933,12 +1034,12 @@ namespace CodexContextHUD
             using (Pen divider = new Pen(Color.FromArgb(55, 55, 58), 1f))
                 e.Graphics.DrawLine(divider, offsetX + 74, 8, offsetX + 74, Height - 8);
 
-            Rectangle ring = new Rectangle(offsetX + 84, 10, 16, 16);
-            using (Pen ringTrack = new Pen(Color.FromArgb(70, 70, 74), 3f))
+            Rectangle ring = new Rectangle(offsetX + 82, 9, 14, 14);
+            using (Pen ringTrack = new Pen(Color.FromArgb(70, 70, 74), 2.5f))
                 e.Graphics.DrawEllipse(ringTrack, ring);
             if (shownContext >= 0)
             {
-                using (Pen ringValue = new Pen(contextColor, 3f))
+                using (Pen ringValue = new Pen(contextColor, 2.5f))
                 {
                     ringValue.StartCap = LineCap.Round;
                     ringValue.EndCap = LineCap.Round;
@@ -949,30 +1050,45 @@ namespace CodexContextHUD
             string context = observedContext < 0 ? "?" : observedContext + "%";
             Size contextLabelSize = TextRenderer.MeasureText(e.Graphics, "上下文", Font,
                 new Size(int.MaxValue, Height), metricFlags);
-            int contextValueX = 105 + contextLabelSize.Width + 4;
+            int contextValueX = 101 + contextLabelSize.Width + 2;
             TextRenderer.DrawText(e.Graphics, "上下文", Font,
-                new Rectangle(offsetX + 105, 0, contextLabelSize.Width, Height), labelColor, metricFlags);
+                new Rectangle(offsetX + 101, 0, contextLabelSize.Width, Height), labelColor, metricFlags);
             DrawAnimatedMetric(e.Graphics, context,
                 new Rectangle(offsetX + contextValueX, 0,
-                    166 - contextValueX, Height),
+                    172 - contextValueX, Height),
                 switchAnimation ? targetContextColor : Color.FromArgb(239, 239, 241),
                 switchAnimation ? Math.Max(0, Math.Min(1, (elapsed - 390) / 520.0)) : 1,
                 switchAnimation && elapsed >= 390, metricFlags);
 
             using (Pen divider = new Pen(Color.FromArgb(55, 55, 58), 1f))
-                e.Graphics.DrawLine(divider, offsetX + 169, 8, offsetX + 169, Height - 8);
+                e.Graphics.DrawLine(divider, offsetX + 176, 8, offsetX + 176, Height - 8);
 
-            Size remainingLabelSize = TextRenderer.MeasureText(e.Graphics, "余量", Font,
+            Rectangle battery = new Rectangle(offsetX + 184, 11, 11, 10);
+            using (Pen batteryPen = new Pen(
+                quotaPercent < 0 ? Color.FromArgb(111, 115, 123) : quotaColor, 1.4f))
+            {
+                batteryPen.LineJoin = LineJoin.Round;
+                e.Graphics.DrawRectangle(batteryPen, battery);
+                e.Graphics.DrawLine(batteryPen, offsetX + 196, 14, offsetX + 196, 18);
+            }
+            if (quotaPercent > 0)
+            {
+                int batteryFill = Math.Max(1,
+                    (int)Math.Round(7 * quotaPercent / 100.0));
+                using (Brush batteryBrush = new SolidBrush(quotaColor))
+                    e.Graphics.FillRectangle(batteryBrush,
+                        offsetX + 186, 13, batteryFill, 6);
+            }
+
+            Size quotaLabelSize = TextRenderer.MeasureText(e.Graphics, "额度", Font,
                 new Size(int.MaxValue, Height), metricFlags);
-            TextRenderer.DrawText(e.Graphics, "余量", Font,
-                new Rectangle(offsetX + 178, 0, remainingLabelSize.Width, Height), labelColor, metricFlags);
-            string remaining = observedRemaining < 0 ? "?" : observedRemaining + "%";
-            DrawAnimatedMetric(e.Graphics, remaining,
-                new Rectangle(offsetX + 178 + remainingLabelSize.Width + 4, 0,
-                    HudContentWidth - (178 + remainingLabelSize.Width + 4) - 2, Height),
-                switchAnimation ? remainingColor : Color.FromArgb(239, 239, 241),
-                switchAnimation ? Math.Max(0, Math.Min(1, (elapsed - 390) / 520.0)) : 1,
-                switchAnimation && elapsed >= 390, metricFlags);
+            TextRenderer.DrawText(e.Graphics, "额度", Font,
+                new Rectangle(offsetX + 201, 0, quotaLabelSize.Width, Height), labelColor, metricFlags);
+            string quota = quotaPercent < 0 ? "—" : quotaPercent + "%";
+            TextRenderer.DrawText(e.Graphics, quota, Font,
+                new Rectangle(offsetX + 201 + quotaLabelSize.Width + 2, 0,
+                    HudContentWidth - (201 + quotaLabelSize.Width + 2) - 1, Height),
+                quotaPercent < 0 ? Color.FromArgb(151, 155, 164) : quotaColor, metricFlags);
         }
 
         private static Color Blend(Color from, Color to, float amount)
@@ -1033,16 +1149,11 @@ namespace CodexContextHUD
             return percent < 0 ? -1 : percent >= 85 ? 2 : percent >= 70 ? 1 : 0;
         }
 
-        internal static int RemainingPercent(int usedPercent)
+        private static Color QuotaColor(int quotaPercent)
         {
-            return usedPercent < 0 ? -1 : 100 - Math.Max(0, Math.Min(100, usedPercent));
-        }
-
-        private static Color RemainingColor(int remainingPercent)
-        {
-            return remainingPercent < 0 ? Color.FromArgb(111, 115, 123) :
-                remainingPercent <= 15 ? Color.FromArgb(224, 104, 104) :
-                remainingPercent <= 30 ? Color.FromArgb(217, 168, 83) :
+            return quotaPercent < 0 ? Color.FromArgb(111, 115, 123) :
+                quotaPercent <= 15 ? Color.FromArgb(224, 104, 104) :
+                quotaPercent <= 30 ? Color.FromArgb(217, 168, 83) :
                 Color.FromArgb(91, 178, 122);
         }
 
@@ -1498,18 +1609,88 @@ namespace CodexContextHUD
             int motionFrames;
             double motionMin;
             double motionMax;
+            int timingSequence;
+            string timingSource;
+            long timingPointer;
+            long timingPosition;
+            long timingStart;
+            long timingFirstHudFrame;
+            long timingFirstAnchorFrame;
             lock (nativeMotionLock)
             {
                 motionFrames = nativeMotionRenderedFrames;
                 motionMin = nativeMotionMinFrameMs;
                 motionMax = nativeMotionMaxFrameMs;
             }
+            lock (motionTimingLock)
+            {
+                timingSequence = motionTimingSequence;
+                timingSource = motionTimingSource;
+                timingPointer = motionTimingPointerTimestamp;
+                timingPosition = motionTimingPositionTimestamp;
+                timingStart = motionTimingStartTimestamp;
+                timingFirstHudFrame = motionTimingFirstHudFrameTimestamp;
+                timingFirstAnchorFrame = motionTimingFirstAnchorFrameTimestamp;
+            }
             Text = string.Format(
-                "CodexContextHUD thread={0} compressions={1} context={2} hook={3} ups={4} sidebarHits={5} motionFrames={6} frameMs={7:0.0}-{8:0.0}",
+                "CodexContextHUD thread={0} compressions={1} context={2} quota={3} hook={4} ups={5} sidebarHits={6} motionFrames={7} frameMs={8:0.0}-{9:0.0} timing={10}:{11} queueMs={12:0.0} startMs={13:0.0} hudFirstMs={14:0.0} anchorEventMs={15:0.0}",
                 currentThreadId ?? "none", reader.Compressions, reader.ContextPercent,
+                Volatile.Read(ref observedQuotaPercent),
                 mouseHookReady, Interlocked.CompareExchange(ref mouseUpCount, 0, 0),
                 Interlocked.CompareExchange(ref sidebarPointerHitCount, 0, 0),
-                motionFrames, motionMin, motionMax);
+                motionFrames, motionMin, motionMax, timingSequence, timingSource,
+                TimingElapsedMs(timingPointer, timingPosition),
+                TimingElapsedMs(timingPointer, timingStart),
+                TimingElapsedMs(timingPointer, timingFirstHudFrame),
+                TimingElapsedMs(timingPointer, timingFirstAnchorFrame));
+        }
+
+        private void BeginMotionTiming(string source, long pointerTimestamp)
+        {
+            lock (motionTimingLock)
+            {
+                unchecked { motionTimingSequence++; }
+                motionTimingSource = source;
+                motionTimingPointerTimestamp = pointerTimestamp;
+                motionTimingPositionTimestamp = 0;
+                motionTimingStartTimestamp = 0;
+                motionTimingFirstHudFrameTimestamp = 0;
+                motionTimingFirstAnchorFrameTimestamp = 0;
+            }
+        }
+
+        private void MarkMotionTimingPosition()
+        {
+            lock (motionTimingLock)
+                if (motionTimingPointerTimestamp > 0 && motionTimingPositionTimestamp == 0)
+                    motionTimingPositionTimestamp = Stopwatch.GetTimestamp();
+        }
+
+        private void MarkMotionTimingStart()
+        {
+            lock (motionTimingLock)
+                if (motionTimingPointerTimestamp > 0 && motionTimingStartTimestamp == 0)
+                    motionTimingStartTimestamp = Stopwatch.GetTimestamp();
+        }
+
+        private void MarkMotionTimingFirstHudFrame(long timestamp)
+        {
+            lock (motionTimingLock)
+                if (motionTimingPointerTimestamp > 0 && motionTimingFirstHudFrameTimestamp == 0)
+                    motionTimingFirstHudFrameTimestamp = timestamp;
+        }
+
+        private void MarkMotionTimingFirstAnchorFrame(long timestamp)
+        {
+            lock (motionTimingLock)
+                if (motionTimingPointerTimestamp > 0 && motionTimingFirstAnchorFrameTimestamp == 0)
+                    motionTimingFirstAnchorFrameTimestamp = timestamp;
+        }
+
+        internal static double TimingElapsedMs(long started, long ended)
+        {
+            if (started <= 0 || ended <= 0 || ended < started) return -1;
+            return (ended - started) * 1000.0 / Stopwatch.Frequency;
         }
 
         private void AnimateIfChanged(bool force = false)
@@ -1520,9 +1701,12 @@ namespace CodexContextHUD
                 animationDeferredForce |= force;
                 return;
             }
-            if (!force && reader.Compressions == observedCompressions && reader.ContextPercent == observedContext)
+            bool quotaChanged = SyncQuotaFromReader(reader);
+            if (!force && reader.Compressions == observedCompressions &&
+                reader.ContextPercent == observedContext)
             {
                 UpdateDiagnosticTitle();
+                if (quotaChanged) Invalidate();
                 return;
             }
             int previousCompressions = observedCompressions;
@@ -1538,6 +1722,20 @@ namespace CodexContextHUD
             animationIconScale = 1f;
             animationActive = true;
             Invalidate();
+        }
+
+        private bool SyncQuotaFromReader(SessionReader source)
+        {
+            if (source == null || source.RemainingQuotaPercent < 0) return false;
+            int current = Volatile.Read(ref observedQuotaPercent);
+            long resetAt = source.QuotaResetsAt;
+            bool newerWindow = resetAt > 0 && resetAt > observedQuotaResetsAt;
+            bool sameWindowIsLower = resetAt == observedQuotaResetsAt &&
+                (current < 0 || source.RemainingQuotaPercent < current);
+            if (!newerWindow && !sameWindowIsLower) return false;
+            observedQuotaResetsAt = resetAt;
+            Interlocked.Exchange(ref observedQuotaPercent, source.RemainingQuotaPercent);
+            return true;
         }
 
         private void Animate(object sender, EventArgs e)
@@ -1654,6 +1852,7 @@ namespace CodexContextHUD
 
         private void PositionBesideCodex()
         {
+            MarkMotionTimingPosition();
             IntPtr foreground = NativeMethods.GetForegroundWindow();
             if (foreground == IntPtr.Zero)
             {
@@ -1826,6 +2025,7 @@ namespace CodexContextHUD
         private void StartNativeMotion(IntPtr window, double startX, double finalX,
             int y, int baseWidth, int baseHeight, long sourceTimestamp)
         {
+            MarkMotionTimingStart();
             int start = (int)Math.Round(startX);
             int final = (int)Math.Round(finalX);
             int canvasLeft = Math.Min(start, final);
@@ -1987,6 +2187,8 @@ namespace CodexContextHUD
                 }
                 nativeMotionLastFrameTimestamp = frameTimestamp;
                 nativeMotionRenderedFrames++;
+                if (nativeMotionRenderedFrames == 1)
+                    MarkMotionTimingFirstHudFrame(frameTimestamp);
                 generation = nativeMotionGeneration;
                 startX = nativeMotionStartX;
                 finalX = nativeMotionFinalX;
@@ -2134,6 +2336,7 @@ namespace CodexContextHUD
                 !(e.NewValue is System.Windows.Rect)) return;
             var bounds = (System.Windows.Rect)e.NewValue;
             if (bounds.Width <= 0 || bounds.Height <= 0) return;
+            MarkMotionTimingFirstAnchorFrame(Stopwatch.GetTimestamp());
             Rectangle published = Rectangle.FromLTRB(
                 (int)Math.Round(bounds.Left), (int)Math.Round(bounds.Top),
                 (int)Math.Round(bounds.Right), (int)Math.Round(bounds.Bottom));
@@ -2219,6 +2422,7 @@ namespace CodexContextHUD
                     return false;
 
                 Interlocked.Increment(ref sidebarPointerHitCount);
+                BeginMotionTiming("right", timestamp);
                 bool nextOpen = !rightPanelOpen;
                 rightPanelOpen = nextOpen;
                 rightPanelPredictionPending = true;
@@ -2299,6 +2503,7 @@ namespace CodexContextHUD
                     sidebarToggleRect.Contains(point.X, point.Y);
                 if (!sidebarStateKnown || (!automationHit && !nativeSlotHit)) return;
                 Interlocked.Increment(ref sidebarPointerHitCount);
+                BeginMotionTiming("left", timestamp);
 
                 bool nextOpen = !sidebarOpen;
                 sidebarOpen = nextOpen;

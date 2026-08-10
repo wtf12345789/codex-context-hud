@@ -6,184 +6,169 @@ Add-Type -AssemblyName System.Drawing
 
 $projectDir = Split-Path -Parent $PSScriptRoot
 $assetsDir = Join-Path $projectDir 'assets'
-$demoPath = Join-Path $assetsDir 'demo.png'
 $heroPath = Join-Path $assetsDir 'hero.png'
-$gifPath = Join-Path $assetsDir 'motion-demo.gif'
-$fontRegular = Join-Path $env:WINDIR 'Fonts\segoeui.ttf'
-$fontBold = Join-Path $env:WINDIR 'Fonts\segoeuib.ttf'
-$ffmpeg = (Get-Command ffmpeg -ErrorAction Stop).Source
+$demoPath = Join-Path $assetsDir 'demo.png'
 
-if (-not (Test-Path -LiteralPath $demoPath)) { throw 'assets\demo.png 不存在。' }
-
-function New-RoundedPath([Drawing.RectangleF]$rect, [float]$radius) {
-    $diameter = $radius * 2
+function New-RoundedPath([Drawing.RectangleF]$Rect, [float]$Radius) {
+    $diameter = $Radius * 2
     $path = New-Object Drawing.Drawing2D.GraphicsPath
-    $path.AddArc($rect.X, $rect.Y, $diameter, $diameter, 180, 90)
-    $path.AddArc($rect.Right - $diameter, $rect.Y, $diameter, $diameter, 270, 90)
-    $path.AddArc($rect.Right - $diameter, $rect.Bottom - $diameter, $diameter, $diameter, 0, 90)
-    $path.AddArc($rect.X, $rect.Bottom - $diameter, $diameter, $diameter, 90, 90)
+    $path.AddArc($Rect.X, $Rect.Y, $diameter, $diameter, 180, 90)
+    $path.AddArc($Rect.Right - $diameter, $Rect.Y, $diameter, $diameter, 270, 90)
+    $path.AddArc($Rect.Right - $diameter, $Rect.Bottom - $diameter, $diameter, $diameter, 0, 90)
+    $path.AddArc($Rect.X, $Rect.Bottom - $diameter, $diameter, $diameter, 90, 90)
     $path.CloseFigure()
     return $path
 }
 
-function Draw-RoundedBox($graphics, [Drawing.RectangleF]$rect, [float]$radius,
-    [Drawing.Color]$fill, [Drawing.Color]$stroke) {
-    $path = New-RoundedPath $rect $radius
-    $brush = New-Object Drawing.SolidBrush $fill
-    $pen = New-Object Drawing.Pen $stroke, 1
-    $graphics.FillPath($brush, $path)
-    $graphics.DrawPath($pen, $path)
-    $pen.Dispose()
-    $brush.Dispose()
-    $path.Dispose()
+function Draw-RoundedBox($Graphics, [Drawing.RectangleF]$Rect, [float]$Radius,
+    [Drawing.Color]$Fill, [Drawing.Color]$Stroke) {
+    $path = New-RoundedPath $Rect $Radius
+    $brush = New-Object Drawing.SolidBrush $Fill
+    $pen = New-Object Drawing.Pen $Stroke, 1
+    $Graphics.FillPath($brush, $path)
+    $Graphics.DrawPath($pen, $path)
+    $pen.Dispose(); $brush.Dispose(); $path.Dispose()
 }
 
-function Draw-Pill($graphics, [string]$text, [float]$x, [float]$y,
-    [Drawing.Color]$accent, $font) {
-    $size = $graphics.MeasureString($text, $font)
-    $rect = [Drawing.RectangleF]::new($x, $y, $size.Width + 42, 38)
-    Draw-RoundedBox $graphics $rect 19 ([Drawing.Color]::FromArgb(235, 29, 31, 38)) `
-        ([Drawing.Color]::FromArgb(255, 51, 55, 67))
-    $dotBrush = New-Object Drawing.SolidBrush $accent
-    $graphics.FillEllipse($dotBrush, $x + 14, $y + 15, 8, 8)
-    $dotBrush.Dispose()
-    $textBrush = New-Object Drawing.SolidBrush ([Drawing.Color]::FromArgb(232, 236, 242))
-    $graphics.DrawString($text, $font, $textBrush, $x + 28, $y + 9)
+function Draw-Pill($Graphics, [string]$Text, [float]$X, [float]$Y,
+    [Drawing.Color]$Accent, [Drawing.Font]$Font) {
+    $size = $Graphics.MeasureString($Text, $Font)
+    $rect = [Drawing.RectangleF]::new($X, $Y, $size.Width + 42, 36)
+    Draw-RoundedBox $Graphics $rect 18 ([Drawing.Color]::FromArgb(235, 35, 36, 39)) `
+        ([Drawing.Color]::FromArgb(255, 58, 59, 64))
+    $dot = New-Object Drawing.SolidBrush $Accent
+    $Graphics.FillEllipse($dot, $X + 14, $Y + 14, 8, 8)
+    $dot.Dispose()
+    $textBrush = New-Object Drawing.SolidBrush ([Drawing.Color]::FromArgb(228, 228, 230))
+    $Graphics.DrawString($Text, $Font, $textBrush, $X + 28, $Y + 8)
     $textBrush.Dispose()
     return $rect.Right
 }
 
-New-Item -ItemType Directory -Path $assetsDir -Force | Out-Null
-$privateFonts = New-Object Drawing.Text.PrivateFontCollection
-$privateFonts.AddFontFile($fontRegular)
-$privateFonts.AddFontFile($fontBold)
-$regularFamily = $privateFonts.Families | Select-Object -First 1
-$boldFamily = $privateFonts.Families | Select-Object -Last 1
+function Draw-Composer($Graphics, [float]$X, [float]$Y, [float]$Width, [float]$Height,
+    [Drawing.Font]$UiFont, [Drawing.Font]$UiBold) {
+    Draw-RoundedBox $Graphics ([Drawing.RectangleF]::new($X, $Y, $Width, $Height)) 26 `
+        ([Drawing.Color]::FromArgb(43, 43, 43)) ([Drawing.Color]::FromArgb(57, 57, 58))
 
+    $muted = New-Object Drawing.SolidBrush ([Drawing.Color]::FromArgb(116, 116, 118))
+    $native = New-Object Drawing.SolidBrush ([Drawing.Color]::FromArgb(221, 221, 223))
+    $orange = New-Object Drawing.SolidBrush ([Drawing.Color]::FromArgb(243, 105, 36))
+    $Graphics.DrawString('Do anything', $UiFont, $muted, $X + 22, $Y + 20)
+    $Graphics.DrawString('+', $UiFont, $native, $X + 22, $Y + $Height - 43)
+    $Graphics.DrawString('!', $UiBold, $orange, $X + 64, $Y + $Height - 42)
+    $Graphics.DrawString('Full access', $UiFont, $orange, $X + 80, $Y + $Height - 42)
+
+    $toolbarY = $Y + $Height - 31
+    $modelX = $X + $Width - 260
+
+    # Remaining quota: the exact 18x12, 16x2 renderer geometry.
+    $track = New-Object Drawing.SolidBrush ([Drawing.Color]::FromArgb(82, 224, 224, 226))
+    $quota = New-Object Drawing.SolidBrush ([Drawing.Color]::FromArgb(134, 165, 142))
+    $Graphics.FillRectangle($track, $modelX - 88, $toolbarY + 7, 16, 2)
+    $Graphics.FillRectangle($quota, $modelX - 88, $toolbarY + 7, 10, 2)
+
+    # Saturated 10+ compaction state: three black bars with a faint native outline.
+    $barBrush = New-Object Drawing.SolidBrush ([Drawing.Color]::FromArgb(23, 23, 23))
+    $barPen = New-Object Drawing.Pen ([Drawing.Color]::FromArgb(72, 255, 255, 255)), .7
+    foreach ($offset in @(-58, -53, -48)) {
+        $barX = $modelX + $offset
+        $Graphics.FillRectangle($barBrush, $barX, $toolbarY + 3, 2, 10)
+        $Graphics.DrawRectangle($barPen, $barX, $toolbarY + 3, 2, 10)
+    }
+
+    # Codex native context ring.
+    $ringPen = New-Object Drawing.Pen ([Drawing.Color]::FromArgb(145, 151, 151, 153)), 2
+    $ringPen.StartCap = [Drawing.Drawing2D.LineCap]::Round
+    $ringPen.EndCap = [Drawing.Drawing2D.LineCap]::Round
+    $Graphics.DrawArc($ringPen, $modelX - 25, $toolbarY + 2, 13, 13, -72, 260)
+    $Graphics.DrawString('5.6 Sol', $UiBold, $native, $modelX, $toolbarY - 1)
+    $Graphics.DrawString('High', $UiFont, $muted, $modelX + 57, $toolbarY - 1)
+    $Graphics.DrawString('⌄', $UiFont, $muted, $modelX + 90, $toolbarY - 1)
+    $Graphics.DrawString('◦', $UiFont, $native, $modelX + 136, $toolbarY - 1)
+    $Graphics.FillEllipse($native, $X + $Width - 49, $toolbarY - 3, 34, 34)
+    $arrow = New-Object Drawing.SolidBrush ([Drawing.Color]::FromArgb(61, 61, 63))
+    $Graphics.DrawString('↑', $UiBold, $arrow, $X + $Width - 42, $toolbarY + 1)
+
+    $track.Dispose(); $quota.Dispose(); $barBrush.Dispose(); $barPen.Dispose()
+    $ringPen.Dispose(); $arrow.Dispose(); $muted.Dispose(); $native.Dispose(); $orange.Dispose()
+}
+
+New-Item -ItemType Directory -Path $assetsDir -Force | Out-Null
 $hero = New-Object Drawing.Bitmap 1280,640
-$hero.SetResolution(96,96)
+$hero.SetResolution(96, 96)
 $g = [Drawing.Graphics]::FromImage($hero)
 $g.SmoothingMode = [Drawing.Drawing2D.SmoothingMode]::AntiAlias
 $g.InterpolationMode = [Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
 $g.TextRenderingHint = [Drawing.Text.TextRenderingHint]::ClearTypeGridFit
+
 $background = New-Object Drawing.Drawing2D.LinearGradientBrush `
-    ([Drawing.Rectangle]::new(0,0,1280,640)), `
-    ([Drawing.Color]::FromArgb(14,15,19)), `
-    ([Drawing.Color]::FromArgb(24,27,35)), 18
+    ([Drawing.Rectangle]::new(0, 0, 1280, 640)), `
+    ([Drawing.Color]::FromArgb(20, 20, 21)), `
+    ([Drawing.Color]::FromArgb(29, 31, 32)), 18
 $g.FillRectangle($background, 0, 0, 1280, 640)
 $background.Dispose()
+$sageGlow = New-Object Drawing.SolidBrush ([Drawing.Color]::FromArgb(18, 134, 165, 142))
+$blueGlow = New-Object Drawing.SolidBrush ([Drawing.Color]::FromArgb(15, 92, 127, 218))
+$g.FillEllipse($sageGlow, -200, 410, 560, 380)
+$g.FillEllipse($blueGlow, 900, -260, 600, 600)
+$sageGlow.Dispose(); $blueGlow.Dispose()
 
-$blueGlow = New-Object Drawing.SolidBrush ([Drawing.Color]::FromArgb(22, 91, 130, 230))
-$greenGlow = New-Object Drawing.SolidBrush ([Drawing.Color]::FromArgb(18, 73, 183, 126))
-$g.FillEllipse($blueGlow, 850, -260, 620, 620)
-$g.FillEllipse($greenGlow, -180, 430, 520, 360)
-$blueGlow.Dispose(); $greenGlow.Dispose()
+$eyebrowFont = New-Object Drawing.Font 'Segoe UI Semibold', 13
+$titleFont = New-Object Drawing.Font 'Segoe UI Semibold', 46
+$subtitleFont = New-Object Drawing.Font 'Segoe UI', 18
+$pillFont = New-Object Drawing.Font 'Segoe UI', 10
+$uiFont = New-Object Drawing.Font 'Segoe UI', 11
+$uiBold = New-Object Drawing.Font 'Segoe UI Semibold', 11
+$smallFont = New-Object Drawing.Font 'Segoe UI', 10
 
-$eyebrowFont = New-Object Drawing.Font $boldFamily, 13, ([Drawing.FontStyle]::Bold)
-$titleFont = New-Object Drawing.Font $boldFamily, 48, ([Drawing.FontStyle]::Bold)
-$subtitleFont = New-Object Drawing.Font $regularFamily, 19, ([Drawing.FontStyle]::Regular)
-$pillFont = New-Object Drawing.Font $regularFamily, 11, ([Drawing.FontStyle]::Regular)
-$smallFont = New-Object Drawing.Font $regularFamily, 11, ([Drawing.FontStyle]::Regular)
+$eyebrow = New-Object Drawing.SolidBrush ([Drawing.Color]::FromArgb(134, 165, 142))
+$title = New-Object Drawing.SolidBrush ([Drawing.Color]::FromArgb(246, 246, 247))
+$subtitle = New-Object Drawing.SolidBrush ([Drawing.Color]::FromArgb(174, 174, 178))
+$g.DrawString('WINDOWS  ·  CODEX DESKTOP  ·  LOCALHOST', $eyebrowFont, $eyebrow, 80, 62)
+$g.DrawString('Codex Context HUD', $titleFont, $title, 76, 98)
+$g.DrawString('Context, compactions and quota — inside the native composer.',
+    $subtitleFont, $subtitle, 80, 174)
 
-$eyebrowBrush = New-Object Drawing.SolidBrush ([Drawing.Color]::FromArgb(119,151,230))
-$titleBrush = New-Object Drawing.SolidBrush ([Drawing.Color]::FromArgb(246,247,250))
-$subtitleBrush = New-Object Drawing.SolidBrush ([Drawing.Color]::FromArgb(171,176,188))
-$g.DrawString('WINDOWS  ·  LOCAL  ·  READ-ONLY', $eyebrowFont, $eyebrowBrush, 80, 68)
-$g.DrawString('Codex Context HUD', $titleFont, $titleBrush, 76, 105)
-$g.DrawString('Context usage and compaction count — right beside the Codex composer.',
-    $subtitleFont, $subtitleBrush, 80, 184)
+$next = Draw-Pill $g 'Native layout' 80 226 ([Drawing.Color]::FromArgb(119, 151, 230)) $pillFont
+$next = Draw-Pill $g 'Session-aware' ($next + 12) 226 ([Drawing.Color]::FromArgb(134, 165, 142)) $pillFont
+$null = Draw-Pill $g 'No JSONL scans' ($next + 12) 226 ([Drawing.Color]::FromArgb(212, 187, 111)) $pillFont
 
-$nextX = Draw-Pill $g 'Active-task aware' 80 238 ([Drawing.Color]::FromArgb(119,151,230)) $pillFont
-$nextX = Draw-Pill $g 'No injection' ($nextX + 12) 238 ([Drawing.Color]::FromArgb(91,178,122)) $pillFont
-$null = Draw-Pill $g 'Zero network calls' ($nextX + 12) 238 ([Drawing.Color]::FromArgb(217,168,83)) $pillFont
+Draw-Composer $g 80 342 1120 170 $uiFont $uiBold
 
-$shadow = [Drawing.RectangleF]::new(62, 332, 1156, 205)
-Draw-RoundedBox $g $shadow 24 ([Drawing.Color]::FromArgb(110,0,0,0)) `
-    ([Drawing.Color]::FromArgb(0,0,0,0))
-$frame = [Drawing.RectangleF]::new(70, 324, 1140, 205)
-Draw-RoundedBox $g $frame 22 ([Drawing.Color]::FromArgb(255,20,21,25)) `
-    ([Drawing.Color]::FromArgb(255,53,57,67))
+# Unified hover card, matching the renderer's compact native styling.
+Draw-RoundedBox $g ([Drawing.RectangleF]::new(716, 288, 194, 102)) 12 `
+    ([Drawing.Color]::FromArgb(48, 48, 48)) ([Drawing.Color]::FromArgb(76, 76, 77))
+$cardMuted = New-Object Drawing.SolidBrush ([Drawing.Color]::FromArgb(166, 166, 168))
+$cardText = New-Object Drawing.SolidBrush ([Drawing.Color]::FromArgb(240, 240, 241))
+$g.DrawString('SESSION STATS', $smallFont, $cardMuted, 732, 302)
+$g.DrawString('Account quota', $smallFont, $cardMuted, 732, 329)
+$g.DrawString('64%', $uiBold, $cardText, 858, 328)
+$g.DrawString('Compactions', $smallFont, $cardMuted, 732, 354)
+$g.DrawString('28', $uiBold, $cardText, 863, 353)
+$cardMuted.Dispose(); $cardText.Dispose()
 
-$demo = [Drawing.Image]::FromFile($demoPath)
-$inner = [Drawing.RectangleF]::new(82, 343, 1116, 163)
-$g.DrawImage($demo, $inner)
-$demo.Dispose()
-
-$footerBrush = New-Object Drawing.SolidBrush ([Drawing.Color]::FromArgb(132,138,151))
-$g.DrawString('Compactions  ·  Context pressure  ·  Native sidebar tracking',
-    $smallFont, $footerBrush, 80, 572)
-
-$footerBrush.Dispose(); $eyebrowBrush.Dispose(); $titleBrush.Dispose(); $subtitleBrush.Dispose()
-$eyebrowFont.Dispose(); $titleFont.Dispose(); $subtitleFont.Dispose(); $pillFont.Dispose(); $smallFont.Dispose()
+$footer = New-Object Drawing.SolidBrush ([Drawing.Color]::FromArgb(134, 134, 138))
+$g.DrawString('Native context ring  ·  stable compaction stages  ·  primary quota at a glance',
+    $smallFont, $footer, 80, 566)
+$footer.Dispose(); $eyebrow.Dispose(); $title.Dispose(); $subtitle.Dispose()
+$eyebrowFont.Dispose(); $titleFont.Dispose(); $subtitleFont.Dispose(); $pillFont.Dispose()
+$uiFont.Dispose(); $uiBold.Dispose(); $smallFont.Dispose()
 $g.Dispose()
 $hero.Save($heroPath, [Drawing.Imaging.ImageFormat]::Png)
 $hero.Dispose()
 
-# Deterministic motion demo built from the sanitized real composer capture.
-$tempRoot = Join-Path ([IO.Path]::GetTempPath()) ("CodexContextHUD-showcase-{0}" -f [Guid]::NewGuid())
-New-Item -ItemType Directory -Path $tempRoot -Force | Out-Null
-try {
-    $demo = [Drawing.Image]::FromFile($demoPath)
-    $frameCount = 84
-    for ($i = 0; $i -lt $frameCount; $i++) {
-        if ($i -lt 12) { $progress = 0 }
-        elseif ($i -lt 36) {
-            $t = ($i - 12) / 23.0
-            $progress = 1 - [Math]::Pow(1 - $t, 4)
-        }
-        elseif ($i -lt 48) { $progress = 1 }
-        elseif ($i -lt 72) {
-            $t = ($i - 48) / 23.0
-            $progress = [Math]::Pow(1 - $t, 4)
-        }
-        else { $progress = 0 }
-
-        $frame = New-Object Drawing.Bitmap 960,360
-        $fg = [Drawing.Graphics]::FromImage($frame)
-        $fg.SmoothingMode = [Drawing.Drawing2D.SmoothingMode]::AntiAlias
-        $fg.InterpolationMode = [Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
-        $fg.Clear([Drawing.Color]::FromArgb(22,23,27))
-
-        $panelWidth = [int][Math]::Round(190 * $progress)
-        $shift = [int][Math]::Round(-95 * $progress)
-        $fg.DrawImage($demo, [Drawing.Rectangle]::new(30 + $shift, 130, 900, 132))
-        if ($panelWidth -gt 0) {
-            $panelBrush = New-Object Drawing.SolidBrush ([Drawing.Color]::FromArgb(35,36,42))
-            $borderPen = New-Object Drawing.Pen ([Drawing.Color]::FromArgb(57,60,70)), 1
-            $fg.FillRectangle($panelBrush, 960 - $panelWidth, 0, $panelWidth, 360)
-            $fg.DrawLine($borderPen, 960 - $panelWidth, 0, 960 - $panelWidth, 360)
-            $borderPen.Dispose(); $panelBrush.Dispose()
-        }
-
-        $labelFont = New-Object Drawing.Font $boldFamily, 18, ([Drawing.FontStyle]::Bold)
-        $noteFont = New-Object Drawing.Font $regularFamily, 11, ([Drawing.FontStyle]::Regular)
-        $labelBrush = New-Object Drawing.SolidBrush ([Drawing.Color]::FromArgb(239,241,246))
-        $noteBrush = New-Object Drawing.SolidBrush ([Drawing.Color]::FromArgb(148,154,168))
-        $fg.DrawString('HUD follows the Codex composer', $labelFont, $labelBrush, 42, 42)
-        $fg.DrawString('Monotonic DWM-synchronized movement · content animations paused',
-            $noteFont, $noteBrush, 44, 78)
-        $labelBrush.Dispose(); $noteBrush.Dispose(); $labelFont.Dispose(); $noteFont.Dispose()
-        $fg.Dispose()
-        $frame.Save((Join-Path $tempRoot ("frame-{0:D3}.png" -f $i)),
-            [Drawing.Imaging.ImageFormat]::Png)
-        $frame.Dispose()
-    }
-    $demo.Dispose()
-
-    & $ffmpeg -hide_banner -loglevel error -y -framerate 30 `
-        -i (Join-Path $tempRoot 'frame-%03d.png') `
-        -vf 'fps=30,split[s0][s1];[s0]palettegen=max_colors=128[p];[s1][p]paletteuse=dither=sierra2_4a' `
-        -loop 0 $gifPath
-    if ($LASTEXITCODE -ne 0) { throw "ffmpeg 生成 GIF 失败：$LASTEXITCODE" }
-}
-finally {
-    $resolvedTemp = [IO.Path]::GetFullPath($tempRoot)
-    $systemTemp = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\') + '\'
-    if ($resolvedTemp.StartsWith($systemTemp, [StringComparison]::OrdinalIgnoreCase) -and
-        [IO.Path]::GetFileName($resolvedTemp).StartsWith('CodexContextHUD-showcase-')) {
-        Remove-Item -LiteralPath $resolvedTemp -Recurse -Force -ErrorAction SilentlyContinue
-    }
-}
+# Keep a sanitized composer-only asset for downstream demos.
+$demo = New-Object Drawing.Bitmap 1280,220
+$dg = [Drawing.Graphics]::FromImage($demo)
+$dg.SmoothingMode = [Drawing.Drawing2D.SmoothingMode]::AntiAlias
+$dg.TextRenderingHint = [Drawing.Text.TextRenderingHint]::ClearTypeGridFit
+$dg.Clear([Drawing.Color]::FromArgb(24, 24, 25))
+$demoUi = New-Object Drawing.Font 'Segoe UI', 11
+$demoBold = New-Object Drawing.Font 'Segoe UI Semibold', 11
+Draw-Composer $dg 60 25 1160 170 $demoUi $demoBold
+$demoUi.Dispose(); $demoBold.Dispose(); $dg.Dispose()
+$demo.Save($demoPath, [Drawing.Imaging.ImageFormat]::Png)
+$demo.Dispose()
 
 Write-Host "Generated: $heroPath"
-Write-Host "Generated: $gifPath"
+Write-Host "Generated: $demoPath"

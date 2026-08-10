@@ -6,16 +6,19 @@ param(
 $ErrorActionPreference = 'Stop'
 $projectDir = $PSScriptRoot
 $outputZip = Join-Path $projectDir 'CodexContextHUD-portable.zip'
+$archiveChecksumPath = "$outputZip.sha256"
 $packageRoot = Join-Path ([IO.Path]::GetTempPath()) `
     ("CodexContextHUD-package-{0}" -f [Guid]::NewGuid())
 $packageDir = Join-Path $packageRoot 'CodexContextHUD-portable'
 $checksumPath = Join-Path $projectDir 'SHA256SUMS.txt'
 $payload = @(
     'CodexContextHUD.exe',
+    'Launch-CodexWithHUD.ps1',
     'Install.ps1',
     'Uninstall.ps1',
     'README.md',
     'README.en.md',
+    'CHANGELOG.md',
     'LICENSE'
 )
 
@@ -58,5 +61,10 @@ finally {
     }
 }
 
+$archiveHash = (Get-FileHash -LiteralPath $outputZip -Algorithm SHA256).Hash
+[IO.File]::WriteAllLines($archiveChecksumPath,
+    @("$archiveHash  CodexContextHUD-portable.zip"),
+    (New-Object Text.UTF8Encoding($false)))
 Write-Host "Package: $outputZip"
-Write-Host "SHA256: $((Get-FileHash -LiteralPath $outputZip -Algorithm SHA256).Hash)"
+Write-Host "SHA256: $archiveHash"
+Write-Host "Checksum: $archiveChecksumPath"

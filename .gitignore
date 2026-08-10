@@ -1,6 +1,7 @@
 *.exe
 *.pdb
 *.zip
+*.zip.sha256
 *.log
 *.tmp
 bin/

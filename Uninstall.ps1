@@ -5,34 +5,47 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $targetExe = Join-Path $InstallDir 'CodexContextHUD.exe'
-$targetReadme = Join-Path $InstallDir 'README.md'
-$shortcutPath = Join-Path ([Environment]::GetFolderPath('Startup')) 'Codex Context HUD.lnk'
+$startupShortcut = Join-Path ([Environment]::GetFolderPath('Startup')) 'Codex Context HUD.lnk'
+$programsDir = Join-Path ([Environment]::GetFolderPath('Programs')) 'Codex Context HUD'
+$launcherShortcut = Join-Path $programsDir 'Codex with Context HUD.lnk'
 
 # 只退出本工具，Codex 进程始终不受影响。
-Get-Process -Name 'CodexContextHUD' -ErrorAction SilentlyContinue | ForEach-Object {
-    try {
-        if ([IO.Path]::GetFullPath($_.Path) -eq [IO.Path]::GetFullPath($targetExe)) {
-            Stop-Process -Id $_.Id -Force
-            $_.WaitForExit(3000)
-        }
-    } catch { }
-}
+Get-CimInstance Win32_Process -Filter "Name='CodexContextHUD.exe'" -ErrorAction SilentlyContinue |
+    ForEach-Object {
+        try {
+            if ([IO.Path]::GetFullPath($_.ExecutablePath) -eq [IO.Path]::GetFullPath($targetExe)) {
+                Stop-Process -Id $_.ProcessId -Force
+                Wait-Process -Id $_.ProcessId -Timeout 3 -ErrorAction SilentlyContinue
+            }
+        } catch { }
+    }
 
-if (Test-Path -LiteralPath $shortcutPath) {
+foreach ($shortcutPath in @($startupShortcut, $launcherShortcut)) {
+    if (-not (Test-Path -LiteralPath $shortcutPath)) { continue }
     try {
         $shell = New-Object -ComObject WScript.Shell
-        $shortcutTarget = $shell.CreateShortcut($shortcutPath).TargetPath
-        if ([IO.Path]::GetFullPath($shortcutTarget) -eq
-            [IO.Path]::GetFullPath($targetExe)) {
+        $shortcut = $shell.CreateShortcut($shortcutPath)
+        $target = [IO.Path]::GetFullPath($shortcut.TargetPath)
+        if ($target -eq [IO.Path]::GetFullPath($targetExe) -or
+            $shortcut.Arguments.IndexOf($InstallDir, [StringComparison]::OrdinalIgnoreCase) -ge 0) {
             Remove-Item -LiteralPath $shortcutPath -Force
         }
     } catch { }
 }
-Remove-Item -LiteralPath $targetExe -Force -ErrorAction SilentlyContinue
-Remove-Item -LiteralPath $targetReadme -Force -ErrorAction SilentlyContinue
+
+foreach ($name in @(
+    'CodexContextHUD.exe', 'Launch-CodexWithHUD.ps1', 'Uninstall.ps1',
+    'README.md', 'README.en.md', 'CHANGELOG.md', 'LICENSE'
+)) {
+    Remove-Item -LiteralPath (Join-Path $InstallDir $name) -Force -ErrorAction SilentlyContinue
+}
 if (Test-Path -LiteralPath $InstallDir) {
     $remaining = @(Get-ChildItem -LiteralPath $InstallDir -Force)
     if ($remaining.Count -eq 0) { Remove-Item -LiteralPath $InstallDir -Force }
+}
+if (Test-Path -LiteralPath $programsDir) {
+    $remaining = @(Get-ChildItem -LiteralPath $programsDir -Force)
+    if ($remaining.Count -eq 0) { Remove-Item -LiteralPath $programsDir -Force }
 }
 
 Write-Host 'Codex Context HUD 已卸载；Codex 未被关闭或重启。'
