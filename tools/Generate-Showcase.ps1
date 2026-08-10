@@ -7,7 +7,9 @@ Add-Type -AssemblyName System.Drawing
 $projectDir = Split-Path -Parent $PSScriptRoot
 $assetsDir = Join-Path $projectDir 'assets'
 $heroPath = Join-Path $assetsDir 'hero.png'
+$heroGifPath = Join-Path $assetsDir 'hero.gif'
 $demoPath = Join-Path $assetsDir 'demo.png'
+$ffmpeg = (Get-Command ffmpeg -ErrorAction Stop).Source
 
 function New-RoundedPath([Drawing.RectangleF]$Rect, [float]$Radius) {
     $diameter = $Radius * 2
@@ -93,6 +95,25 @@ function Draw-Composer($Graphics, [float]$X, [float]$Y, [float]$Width, [float]$H
     $ringPen.Dispose(); $arrow.Dispose(); $muted.Dispose(); $native.Dispose(); $orange.Dispose()
 }
 
+function Draw-HoverCard($Graphics, [double]$Opacity, [double]$OffsetY,
+    [Drawing.Font]$SmallFont, [Drawing.Font]$UiBold) {
+    $opacity = [Math]::Max(0, [Math]::Min(1, $Opacity))
+    if ($opacity -le 0) { return }
+    $alpha = [int][Math]::Round(255 * $opacity)
+    $y = [float](288 + $OffsetY)
+    Draw-RoundedBox $Graphics ([Drawing.RectangleF]::new(716, $y, 194, 102)) 12 `
+        ([Drawing.Color]::FromArgb([int][Math]::Round(245 * $opacity), 48, 48, 48)) `
+        ([Drawing.Color]::FromArgb([int][Math]::Round(255 * $opacity), 76, 76, 77))
+    $muted = New-Object Drawing.SolidBrush ([Drawing.Color]::FromArgb($alpha, 166, 166, 168))
+    $text = New-Object Drawing.SolidBrush ([Drawing.Color]::FromArgb($alpha, 240, 240, 241))
+    $Graphics.DrawString('SESSION STATS', $SmallFont, $muted, 732, $y + 14)
+    $Graphics.DrawString('Account quota', $SmallFont, $muted, 732, $y + 41)
+    $Graphics.DrawString('64%', $UiBold, $text, 858, $y + 40)
+    $Graphics.DrawString('Compactions', $SmallFont, $muted, 732, $y + 66)
+    $Graphics.DrawString('28', $UiBold, $text, 863, $y + 65)
+    $muted.Dispose(); $text.Dispose()
+}
+
 New-Item -ItemType Directory -Path $assetsDir -Force | Out-Null
 $hero = New-Object Drawing.Bitmap 1280,640
 $hero.SetResolution(96, 96)
@@ -135,27 +156,72 @@ $null = Draw-Pill $g 'No JSONL scans' ($next + 12) 226 ([Drawing.Color]::FromArg
 
 Draw-Composer $g 80 342 1120 170 $uiFont $uiBold
 
-# Unified hover card, matching the renderer's compact native styling.
-Draw-RoundedBox $g ([Drawing.RectangleF]::new(716, 288, 194, 102)) 12 `
-    ([Drawing.Color]::FromArgb(48, 48, 48)) ([Drawing.Color]::FromArgb(76, 76, 77))
-$cardMuted = New-Object Drawing.SolidBrush ([Drawing.Color]::FromArgb(166, 166, 168))
-$cardText = New-Object Drawing.SolidBrush ([Drawing.Color]::FromArgb(240, 240, 241))
-$g.DrawString('SESSION STATS', $smallFont, $cardMuted, 732, 302)
-$g.DrawString('Account quota', $smallFont, $cardMuted, 732, 329)
-$g.DrawString('64%', $uiBold, $cardText, 858, 328)
-$g.DrawString('Compactions', $smallFont, $cardMuted, 732, 354)
-$g.DrawString('28', $uiBold, $cardText, 863, 353)
-$cardMuted.Dispose(); $cardText.Dispose()
-
 $footer = New-Object Drawing.SolidBrush ([Drawing.Color]::FromArgb(134, 134, 138))
 $g.DrawString('Native context ring  ·  stable compaction stages  ·  primary quota at a glance',
     $smallFont, $footer, 80, 566)
-$footer.Dispose(); $eyebrow.Dispose(); $title.Dispose(); $subtitle.Dispose()
-$eyebrowFont.Dispose(); $titleFont.Dispose(); $subtitleFont.Dispose(); $pillFont.Dispose()
-$uiFont.Dispose(); $uiBold.Dispose(); $smallFont.Dispose()
+$footer.Dispose()
+
+# Keep a card-free base for the animated README hero, then save a static fallback.
+$baseHero = $hero.Clone()
+Draw-HoverCard $g 1 0 $smallFont $uiBold
 $g.Dispose()
 $hero.Save($heroPath, [Drawing.Imaging.ImageFormat]::Png)
 $hero.Dispose()
+
+$tempRoot = Join-Path ([IO.Path]::GetTempPath()) `
+    ("CodexContextHUD-hero-{0}" -f [Guid]::NewGuid())
+New-Item -ItemType Directory -Path $tempRoot -Force | Out-Null
+try {
+    $frameCount = 96
+    for ($i = 0; $i -lt $frameCount; $i++) {
+        $frame = $baseHero.Clone()
+        $fg = [Drawing.Graphics]::FromImage($frame)
+        $fg.SmoothingMode = [Drawing.Drawing2D.SmoothingMode]::AntiAlias
+        $fg.TextRenderingHint = [Drawing.Text.TextRenderingHint]::ClearTypeGridFit
+
+        # A short sweep draws the eye across quota, compactions, and the native ring.
+        if ($i -ge 8 -and $i -le 34) {
+            $local = ($i - 8) / 26.0
+            $pulse = [Math]::Sin([Math]::PI * $local)
+            $centerX = 860 + 66 * $local
+            $glow = New-Object Drawing.SolidBrush ([Drawing.Color]::FromArgb(
+                [int][Math]::Round(58 * $pulse), 134, 165, 142))
+            $fg.FillEllipse($glow, [float]($centerX - 18), 476, 36, 26)
+            $glow.Dispose()
+        }
+
+        $cardOpacity = 0.0
+        if ($i -ge 38 -and $i -lt 52) {
+            $t = ($i - 38) / 14.0
+            $cardOpacity = 1 - [Math]::Pow(1 - $t, 3)
+        } elseif ($i -ge 52 -and $i -lt 80) {
+            $cardOpacity = 1
+        } elseif ($i -ge 80) {
+            $t = ($i - 80) / 16.0
+            $cardOpacity = [Math]::Max(0, 1 - $t)
+        }
+        Draw-HoverCard $fg $cardOpacity (8 * (1 - $cardOpacity)) $smallFont $uiBold
+        $fg.Dispose()
+        $frame.Save((Join-Path $tempRoot ("frame-{0:D3}.png" -f $i)),
+            [Drawing.Imaging.ImageFormat]::Png)
+        $frame.Dispose()
+    }
+
+    & $ffmpeg -hide_banner -loglevel error -y -framerate 24 `
+        -i (Join-Path $tempRoot 'frame-%03d.png') `
+        -vf 'fps=24,split[s0][s1];[s0]palettegen=max_colors=96:stats_mode=diff[p];[s1][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle' `
+        -gifflags +transdiff -loop 0 $heroGifPath
+    if ($LASTEXITCODE -ne 0) { throw "ffmpeg failed: $LASTEXITCODE" }
+}
+finally {
+    $baseHero.Dispose()
+    $resolvedTemp = [IO.Path]::GetFullPath($tempRoot)
+    $tempPrefix = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\') + '\'
+    if ($resolvedTemp.StartsWith($tempPrefix, [StringComparison]::OrdinalIgnoreCase) -and
+        [IO.Path]::GetFileName($resolvedTemp).StartsWith('CodexContextHUD-hero-')) {
+        Remove-Item -LiteralPath $resolvedTemp -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
 
 # Keep a sanitized composer-only asset for downstream demos.
 $demo = New-Object Drawing.Bitmap 1280,220
@@ -170,5 +236,10 @@ $demoUi.Dispose(); $demoBold.Dispose(); $dg.Dispose()
 $demo.Save($demoPath, [Drawing.Imaging.ImageFormat]::Png)
 $demo.Dispose()
 
+$eyebrow.Dispose(); $title.Dispose(); $subtitle.Dispose()
+$eyebrowFont.Dispose(); $titleFont.Dispose(); $subtitleFont.Dispose(); $pillFont.Dispose()
+$uiFont.Dispose(); $uiBold.Dispose(); $smallFont.Dispose()
+
 Write-Host "Generated: $heroPath"
+Write-Host "Generated: $heroGifPath"
 Write-Host "Generated: $demoPath"
