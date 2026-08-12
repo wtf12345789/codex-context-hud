@@ -26,6 +26,8 @@ powershell -ExecutionPolicy Bypass -File .\Install.ps1
 
 如果 Codex 已经打开，请自行保存工作并退出，然后从开始菜单启动 **Codex with Context HUD**。安装器和启动器不会强制关闭或重启 Codex。
 
+HUD 不会开机自启。专用入口通过 Windows 的正式应用激活接口启动 Codex，确认本地端口就绪后才加载 HUD；不会直接运行或修改 WindowsApps 内的文件。
+
 卸载：
 
 ```powershell

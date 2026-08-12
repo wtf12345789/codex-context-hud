@@ -444,6 +444,9 @@ namespace CodexContextHUD
                     script.IndexOf("#AF8CE0", StringComparison.Ordinal) >= 0 &&
                     script.IndexOf("width=\"2.6\"", StringComparison.Ordinal) >= 0 &&
                     script.IndexOf("'.62'", StringComparison.Ordinal) >= 0 &&
+                    script.IndexOf("compressions: -1", StringComparison.Ordinal) >= 0 &&
+                    script.IndexOf("state.compressions < 0 ? '正在同步'",
+                        StringComparison.Ordinal) >= 0 &&
                     script.IndexOf("width=\"22\"", StringComparison.Ordinal) >= 0 &&
                     script.IndexOf("clamp(state.quotaPercent) * 22 / 100", StringComparison.Ordinal) >= 0 &&
                     script.IndexOf("data-codex-intelligence-trigger", StringComparison.Ordinal) >= 0 &&

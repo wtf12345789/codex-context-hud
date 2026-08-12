@@ -9,12 +9,46 @@ $sources = @(
     (Join-Path $projectDir 'RendererHudBridge.cs')
 )
 $rendererScript = Join-Path $projectDir 'RendererHudScript.js'
+$launcherScript = Join-Path $projectDir 'Launch-CodexWithHUD.ps1'
+$installScript = Join-Path $projectDir 'Install.ps1'
 $output = Join-Path $projectDir 'CodexContextHUD.exe'
 $buildOutput = Join-Path ([IO.Path]::GetTempPath()) ("CodexContextHUD-build-{0}.exe" -f [Guid]::NewGuid())
 $gac = Join-Path $env:WINDIR 'Microsoft.NET\assembly\GAC_MSIL'
 
 if (-not (Test-Path -LiteralPath $compiler)) {
     throw 'Windows .NET Framework C# compiler was not found.'
+}
+
+foreach ($scriptPath in @($launcherScript, $installScript, (Join-Path $projectDir 'Uninstall.ps1'))) {
+    $parseErrors = $null
+    [void][System.Management.Automation.Language.Parser]::ParseFile(
+        $scriptPath,
+        [ref]$null,
+        [ref]$parseErrors)
+    if ($parseErrors.Count -gt 0) {
+        throw "PowerShell syntax check failed for $scriptPath`: $($parseErrors[0].Message)"
+    }
+}
+
+$launcherSource = Get-Content -LiteralPath $launcherScript -Raw
+foreach ($requiredLauncherText in @(
+    'IApplicationActivationManager',
+    'PackageActivator]::Activate',
+    'PackageFamilyName',
+    'Get-DebugListener'
+)) {
+    if ($launcherSource.IndexOf($requiredLauncherText, [StringComparison]::Ordinal) -lt 0) {
+        throw "Launcher regression check failed: missing $requiredLauncherText."
+    }
+}
+if ($launcherSource.IndexOf('Start-Process -FilePath $codexExe', [StringComparison]::Ordinal) -ge 0) {
+    throw 'Launcher regression check failed: direct WindowsApps executable launch returned.'
+}
+
+$installSource = Get-Content -LiteralPath $installScript -Raw
+if ($installSource.IndexOf('Remove-Item -LiteralPath $startupShortcut', [StringComparison]::Ordinal) -lt 0 -or
+    $installSource.IndexOf('$shortcut.TargetPath = $targetExe', [StringComparison]::Ordinal) -ge 0) {
+    throw 'Installer regression check failed: login-startup cleanup is missing.'
 }
 
 $arguments = @(

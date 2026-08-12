@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented here.
 
+## 0.2.3 - 2026-08-12
+
+- Launch Codex through the Windows package activation API instead of running its WindowsApps executable directly.
+- Start the HUD only after the loopback debugging endpoint is ready.
+- Remove the legacy sign-in startup shortcut during installation to avoid polling while Codex is closed.
+- Use the installed Codex app icon for the dedicated launcher while keeping its name unchanged.
+- Show a loading state instead of a false zero while compaction history is still synchronizing.
+
 ## 0.2.2 - 2026-08-10
 
 - Resolved provisional `client-new-thread` sidebar IDs through the active composer's real conversation ID.

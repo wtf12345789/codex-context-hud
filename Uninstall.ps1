@@ -8,6 +8,8 @@ $targetExe = Join-Path $InstallDir 'CodexContextHUD.exe'
 $startupShortcut = Join-Path ([Environment]::GetFolderPath('Startup')) 'Codex Context HUD.lnk'
 $programsDir = Join-Path ([Environment]::GetFolderPath('Programs')) 'Codex Context HUD'
 $launcherShortcut = Join-Path $programsDir 'Codex with Context HUD.lnk'
+$taskbarShortcut = Join-Path $env:APPDATA `
+    'Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar\Codex with Context HUD.lnk'
 
 # 只退出本工具，Codex 进程始终不受影响。
 Get-CimInstance Win32_Process -Filter "Name='CodexContextHUD.exe'" -ErrorAction SilentlyContinue |
@@ -20,7 +22,7 @@ Get-CimInstance Win32_Process -Filter "Name='CodexContextHUD.exe'" -ErrorAction 
         } catch { }
     }
 
-foreach ($shortcutPath in @($startupShortcut, $launcherShortcut)) {
+foreach ($shortcutPath in @($startupShortcut, $launcherShortcut, $taskbarShortcut)) {
     if (-not (Test-Path -LiteralPath $shortcutPath)) { continue }
     try {
         $shell = New-Object -ComObject WScript.Shell
@@ -35,7 +37,7 @@ foreach ($shortcutPath in @($startupShortcut, $launcherShortcut)) {
 
 foreach ($name in @(
     'CodexContextHUD.exe', 'Launch-CodexWithHUD.ps1', 'Uninstall.ps1',
-    'README.md', 'README.en.md', 'CHANGELOG.md', 'LICENSE'
+    'Codex.ico', 'README.md', 'README.en.md', 'CHANGELOG.md', 'LICENSE'
 )) {
     Remove-Item -LiteralPath (Join-Path $InstallDir $name) -Force -ErrorAction SilentlyContinue
 }

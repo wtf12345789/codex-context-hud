@@ -26,6 +26,8 @@ powershell -ExecutionPolicy Bypass -File .\Install.ps1
 
 If Codex is already open, save your work and exit it yourself, then launch **Codex with Context HUD** from the Start menu. The installer and launcher never force-close or restart Codex.
 
+The HUD does not start at sign-in. The dedicated entry launches Codex through the Windows package activation API and waits for the local endpoint before loading the HUD; it never runs or modifies files inside WindowsApps directly.
+
 Uninstall with:
 
 ```powershell

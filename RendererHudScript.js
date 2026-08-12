@@ -8,7 +8,7 @@
 
   const state = {
     threadId: '',
-    compressions: 0,
+    compressions: -1,
     quotaPercent: -1,
     compactionKeys: new Set(),
     notificationSequence: 0,
@@ -48,7 +48,7 @@
     sessionMotionFrame = 0;
     pendingMotionThreadId = value;
     state.threadId = value;
-    state.compressions = 0;
+    state.compressions = -1;
     state.compactionKeys.clear();
     state.notificationSequence = 0;
     state.loadedThreadId = '';
@@ -213,6 +213,7 @@
       `${source}:${thread || ''}:${JSON.stringify(value)}`;
     if (state.compactionKeys.has(key)) return;
     state.compactionKeys.add(key);
+    if (state.compressions < 0) state.compressions = 0;
     state.compressions += 1;
   }
 
@@ -357,11 +358,12 @@
     const popoverCompression = tooltip && tooltip.querySelector('[data-popover="compression"]');
     const popoverQuota = tooltip && tooltip.querySelector('[data-popover="quota"]');
     if (!compression || !quota) return;
-    const compressionText = String(state.compressions);
+    const compressionText = state.compressions < 0 ? '…' : String(state.compressions);
     const quotaText = percent(state.quotaPercent);
     if (compression.textContent !== compressionText) compression.textContent = compressionText;
     if (quota.textContent !== quotaText) quota.textContent = quotaText;
-    if (popoverCompression) popoverCompression.textContent = `${compressionText} 次`;
+    if (popoverCompression) popoverCompression.textContent =
+      state.compressions < 0 ? '正在同步' : `${compressionText} 次`;
     if (popoverQuota) popoverQuota.textContent = quotaText;
     if (quotaStat) quotaStat.dataset.tone = severity('quota', state.quotaPercent);
     if (quotaStat) quotaStat.style.display = state.quotaPercent < 0 ? 'none' : 'inline-flex';
@@ -402,7 +404,8 @@
     });
     if (compressionStat) compressionStat.dataset.tier = compressionTier;
     if (compressionStat) {
-      compressionStat.setAttribute('aria-label', `压缩次数：${compressionText}`);
+      compressionStat.setAttribute('aria-label', state.compressions < 0 ?
+        '压缩次数：正在同步' : `压缩次数：${compressionText}`);
     }
     if (quotaStat) {
       quotaStat.setAttribute('aria-label', `账户剩余额度：${quotaText}`);
@@ -676,7 +679,7 @@
     if (window[INSTANCE] && window[INSTANCE].dispose === dispose) delete window[INSTANCE];
   };
   window[INSTANCE] = {
-    version: 35,
+    version: 36,
     remount: scheduleMount,
     dispose,
     snapshot: () => ({
