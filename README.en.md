@@ -24,9 +24,13 @@ Requires the Microsoft Store build of Codex Desktop on Windows 10/11. Download a
 powershell -ExecutionPolicy Bypass -File .\Install.ps1
 ```
 
-If Codex is already open, save your work and exit it yourself, then launch **Codex with Context HUD** from the Start menu. The installer and launcher never force-close or restart Codex.
-
 The HUD does not start at sign-in. The dedicated entry launches Codex through the Windows package activation API and waits for the local endpoint before loading the HUD; it never runs or modifies files inside WindowsApps directly.
+
+## Daily use
+
+When you want the HUD, open **Codex with Context HUD** from the Start menu. It starts Codex first, then loads the HUD automatically. The native Codex shortcut starts Codex only and does not load the HUD.
+
+If Codex is already running from its native entry, save your work and exit it yourself before opening **Codex with Context HUD**. This tool never closes or restarts Codex for you; also exit Codex and the HUD yourself before updating or uninstalling Codex.
 
 Uninstall with:
 

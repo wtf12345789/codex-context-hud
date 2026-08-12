@@ -24,9 +24,13 @@ Codex Desktop 的紧凑上下文 HUD。它保留原生上下文圆环，在左�
 powershell -ExecutionPolicy Bypass -File .\Install.ps1
 ```
 
-如果 Codex 已经打开，请自行保存工作并退出，然后从开始菜单启动 **Codex with Context HUD**。安装器和启动器不会强制关闭或重启 Codex。
-
 HUD 不会开机自启。专用入口通过 Windows 的正式应用激活接口启动 Codex，确认本地端口就绪后才加载 HUD；不会直接运行或修改 WindowsApps 内的文件。
+
+## 日常使用
+
+需要 HUD 时，请从开始菜单打开 **Codex with Context HUD**；它会先启动 Codex，随后自动加载 HUD。原生 Codex 快捷方式只启动 Codex，不会加载 HUD。
+
+如果 Codex 已经通过原生入口运行，请先自行保存并退出，再打开 **Codex with Context HUD**。本工具不会替你关闭或重启 Codex；更新或卸载 Codex 前也请先自行退出 Codex 和 HUD。
 
 卸载：
 
